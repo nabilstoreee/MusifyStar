@@ -79,9 +79,34 @@ app.all('/api/suggest', require('./api/suggest.js'));
 app.all('/api/ytplay', require('./api/ytplay.js'));
 app.all('/api/translate', require('./api/translate.js'));
 app.all('/api/transcribe', require('./api/transcribe.js'));
+app.all('/api/admin-auth', require('./api/admin-auth.js'));
+app.all('/api/feedback', require('./api/feedback.js'));
+app.all('/api/analytics', require('./api/analytics.js'));
+app.all('/api/theme', require('./api/theme.js'));
+app.all('/api/broadcast', require('./api/broadcast.js'));
+app.all('/api/version', require('./api/version.js'));
+app.all('/api/maintenance', require('./api/maintenance.js'));
 
 // Proxy audio needs to stream in node, bypassing edge function
 app.get('/api/proxy-audio', (req, res) => {
+    // Check maintenance mode
+    try {
+        const maintenance = require('./api/maintenance.js');
+        const adminAuth = require('./api/admin-auth.js');
+        const token = req.headers['x-admin-token'] || req.headers.authorization;
+        const cleanToken = token ? token.replace(/^Bearer\s+/i, '').trim() : '';
+        const verifyFn = adminAuth.isValidToken || adminAuth.verifyToken;
+        const isAdmin = verifyFn ? verifyFn(cleanToken) : false;
+
+        if (maintenance.isMaintenanceActive() && !isAdmin) {
+            return res.status(503).json({
+                status: false,
+                maintenance: true,
+                message: 'Server sedang dalam mode pemeliharaan (maintenance).'
+            });
+        }
+    } catch(e) {}
+
     const targetUrl = req.query.url;
     if (!targetUrl) return res.status(400).send('Missing url parameter');
     
