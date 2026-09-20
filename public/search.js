@@ -181,8 +181,18 @@ var Search={
             var url=location.origin+'/search/'+encodeURIComponent(S.sq);
             history.pushState({},'',url);
             Search.show(true);
+
+            // Record real user search to analytics
+            try {
+                fetch('/api/analytics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'search', query: S.sq })
+                }).catch(function() {});
+            } catch(e) {}
+
             try{
-                var r=await fetch(API.search+'?query='+encodeURIComponent(S.sq)+'&type=all');
+                var r=await fetch(API.search+'?query='+encodeURIComponent(S.sq)+'&type=all&userSearch=1');
                 var d=await r.json();
                 S.ar=d.status&&d.result.songs?d.result.songs.map(function(s){return{id:s.videoId,videoId:s.videoId,title:cn(s.title),artist:cn(s.artist),artistId:s.artistId||'',cover:toHDCover(s.thumbnail,s.videoId),ytUrl:s.url};}):[];
                 
