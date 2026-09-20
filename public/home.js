@@ -38,7 +38,7 @@ var Home = {
         <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(8, 9, 13, 0.4) 0%, rgba(8, 9, 13, 0.75) 100%), url('/banner.png') center/cover no-repeat; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
             <div class="flex justify-between items-center mb-3">
                 <div>
-                    <h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">StarMusify</h1>
+                    <h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">MusifyStar</h1>
                 </div>
                 <div class="flex items-center gap-2.5">
                     <button onclick="App.switch('search')" class="w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg" title="Cari">
@@ -55,6 +55,9 @@ var Home = {
             </div>
         </div>
         <div class="px-4 mt-4" id="home-main-content">
+            <div id="broadcast-announcement-slot"></div>
+            <div id="maintenance-banner-slot"></div>
+            <div id="seasonal-theme-banner-slot"></div>
             <div id="home-default-view">
                 <div class="space-y-6">
                     <div>
@@ -84,6 +87,9 @@ var Home = {
         </div>`;
 
         lucide.createIcons();
+        if (window.App && typeof App.renderSeasonalBanner === 'function') App.renderSeasonalBanner();
+        if (window.App && typeof App.renderBroadcastBanner === 'function') App.renderBroadcastBanner();
+        if (window.Maintenance && typeof Maintenance.updateUI === 'function') Maintenance.updateUI(Maintenance.isActive);
 
         if (Home.activeCategory && Home.activeCategory !== 'Semua') {
             if (Home.activeCategory === 'Developer Profile') {
@@ -580,8 +586,8 @@ var Home = {
         if ((!S.ht || S.ht.length === 0) && !navigator.onLine) {
             g.innerHTML = '<div class="col-span-2 md:col-span-4 bg-[#20222c] border border-white/10 rounded-2xl p-5 text-center space-y-2 shadow-xl">'+
                 '<div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30"><i data-lucide="wifi-off" class="w-5 h-5"></i></div>'+
-                '<p class="text-white font-bold text-sm">Mode Offline (Tidak Ada Internet)</p>'+
-                '<p class="text-white/60 text-xs">Putar lagu yang tersimpan sebelumnya di tab Offline PWA.</p>'+
+                '<p class="text-white font-bold text-sm">Tidak Ada Internet</p>'+
+                '<p class="text-white/60 text-xs">Putar lagu yang tersimpan sebelumnya di tab Offline APK.</p>'+
                 '<button onclick="App.switch(\'offline\')" class="mt-2 btn-chrome px-4 py-2 text-xs font-bold rounded-xl active:scale-95 transition inline-flex items-center gap-1.5"><i data-lucide="disc" class="w-4 h-4"></i> Buka Lagu Offline</button>'+
             '</div>';
         } else {
