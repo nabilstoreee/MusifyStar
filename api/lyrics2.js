@@ -1,14 +1,14 @@
 const { getTranscribe } = require('./transcribe.js');
 const { translateLines } = require('./translate.js');
 
-async function getLyrics2(videoId) {
+async function getLyrics2(videoId, initialTitle = '', initialArtist = '') {
     let lyricsData = { type: 'none', lines: [] };
-    let title = '', artist = '';
+    let title = initialTitle || '', artist = initialArtist || '';
 
     try {
-        const transcribed = await getTranscribe(videoId);
+        const transcribed = await getTranscribe(videoId).catch(() => null);
         if (transcribed) {
-            title = transcribed.title || '';
+            title = transcribed.title || title;
             if (transcribed.synced && transcribed.synced.length > 0) {
                 lyricsData = {
                     type: 'synced',
@@ -25,11 +25,13 @@ async function getLyrics2(videoId) {
             }
         }
     } catch (err) {
-        console.error('[LYRICS2] Transcribe error:', err.message);
+        // Silently fallback if transcription is unavailable
     }
 
     if (lyricsData.lines && lyricsData.lines.length > 0) {
-        lyricsData.lines = await translateLines(lyricsData.lines);
+        try {
+            lyricsData.lines = await translateLines(lyricsData.lines);
+        } catch (e) {}
     }
 
     return { videoId, title, artist, lyrics: lyricsData };
@@ -38,10 +40,12 @@ async function getLyrics2(videoId) {
 const handler = async (req, res) => {
     if (req.method === 'OPTIONS') { res.status(200).end(); return; }
     const videoId = (req.query.id || req.body?.id || '').trim();
+    const title = (req.query.title || req.body?.title || '').trim();
+    const artist = (req.query.artist || req.body?.artist || '').trim();
     if (!videoId) { res.status(400).json({ status: false, message: 'Parameter id wajib diisi' }); return; }
 
     try {
-        const result = await getLyrics2(videoId);
+        const result = await getLyrics2(videoId, title, artist);
         res.status(200).json({ status: true, source: 'transcribe', result });
     } catch(e) {
         res.status(500).json({ status: false, message: e.message });
