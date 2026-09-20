@@ -190,40 +190,45 @@ async function getTranscribe(urlOrVideoId) {
         }
     } catch (e) {}
 
-    // 2. SaveTube + AssemblyAI
-    const fullUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const audioData = await getAudioStream(fullUrl);
-    if (!audioData?.audio) throw new Error('Gagal mendapatkan audio dari YouTube');
-
-    const audioRes = await axios.get(audioData.audio, { responseType: 'arraybuffer', timeout: 30000 });
-    const mp3Path = path.join(os.tmpdir(), `${videoId}_${Date.now()}.mp3`);
-    fs.writeFileSync(mp3Path, Buffer.from(audioRes.data));
-
+    // 2. SaveTube + AssemblyAI (with safe error handling and file cleanup)
+    let mp3Path = null;
     try {
+        const fullUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const audioData = await getAudioStream(fullUrl);
+        if (!audioData?.audio) return null;
+
+        const audioRes = await axios.get(audioData.audio, { responseType: 'arraybuffer', timeout: 30000 });
+        if (!audioRes.data || audioRes.data.length < 1000) return null;
+
+        mp3Path = path.join(os.tmpdir(), `${videoId}_${Date.now()}.mp3`);
+        fs.writeFileSync(mp3Path, Buffer.from(audioRes.data));
+
         const uploadRes = await axios.post('https://api.assemblyai.com/v2/upload',
             fs.createReadStream(mp3Path),
             { headers: { 'Authorization': ASSEMBLYAI_KEY }, maxBodyLength: Infinity, timeout: 60000 }
         );
 
-        if (fs.existsSync(mp3Path)) fs.unlinkSync(mp3Path);
+        if (!uploadRes.data?.upload_url) return null;
 
         const transRes = await axios.post('https://api.assemblyai.com/v2/transcript', {
             audio_url: uploadRes.data.upload_url,
             speaker_labels: true
         }, { headers: { 'Authorization': ASSEMBLYAI_KEY, 'Content-Type': 'application/json' }, timeout: 15000 });
 
+        if (!transRes.data?.id) return null;
+
         let result;
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 20; i++) {
             await new Promise(r => setTimeout(r, 2000));
             const poll = await axios.get(`https://api.assemblyai.com/v2/transcript/${transRes.data.id}`, {
                 headers: { 'Authorization': ASSEMBLYAI_KEY },
                 timeout: 10000
             });
             if (poll.data.status === 'completed') { result = poll.data; break; }
-            if (poll.data.status === 'error') throw new Error(poll.data.error || 'AssemblyAI Error');
+            if (poll.data.status === 'error') return null;
         }
 
-        if (!result) throw new Error('Timeout transkripsi AssemblyAI');
+        if (!result) return null;
 
         const synced = formatAssemblyAIWords(result.words || []);
 
@@ -237,8 +242,11 @@ async function getTranscribe(urlOrVideoId) {
             synced
         };
     } catch (err) {
-        if (fs.existsSync(mp3Path)) fs.unlinkSync(mp3Path);
-        throw err;
+        return null;
+    } finally {
+        if (mp3Path && fs.existsSync(mp3Path)) {
+            try { fs.unlinkSync(mp3Path); } catch (e) {}
+        }
     }
 }
 
