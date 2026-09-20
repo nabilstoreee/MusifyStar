@@ -40,20 +40,39 @@ var MP={
                     <div id="mini-artist" class="text-[#a0a5b0] text-[11px] truncate mt-0.5"></div>
                 </div>
 
-                <!-- Controls: Play/Pause and Heart -->
-                <div class="flex items-center gap-1.5 z-10 shrink-0">
+                <!-- Controls: Play/Pause, Heart, and Close (X) -->
+                <div class="flex items-center gap-1 z-10 shrink-0">
                     <button onclick="TP(); if(typeof event !== 'undefined') event.stopPropagation();" class="text-white active:scale-90 p-0.5 cursor-pointer" title="Putar/Jeda">
                         <div id="mini-play-btn" class="w-9 h-9 rounded-full flex items-center justify-center transition-all bg-white/10 border border-white/20 hover:bg-white/20">
                             <i data-lucide="play" class="w-4 h-4 fill-current ml-0.5"></i>
                         </div>
                     </button>
-                    <button id="mini-like-btn" onclick="toggleCurrentLike(); if(typeof event !== 'undefined') event.stopPropagation();" class="text-[#a0a5b0] hover:text-rose-400 active:scale-90 p-1.5 cursor-pointer" title="Sukai Lagu">
+                    <button id="mini-like-btn" onclick="toggleCurrentLike(); if(typeof event !== 'undefined') event.stopPropagation();" class="text-[#a0a5b0] hover:text-rose-400 active:scale-90 p-1 cursor-pointer" title="Sukai Lagu">
                         <i data-lucide="heart" class="w-5 h-5"></i>
+                    </button>
+                    <button id="mini-close-btn" onclick="MP.close(event)" class="text-[#a0a5b0] hover:text-white active:scale-90 p-1 cursor-pointer transition-colors" title="Tutup Pemutar">
+                        <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </div>
             </div>
         </div>`;
         lucide.createIcons();
+    },
+    close(e){
+        if(e && e.stopPropagation) e.stopPropagation();
+        if(typeof ST === 'function') ST();
+        if(typeof AU !== 'undefined' && AU){
+            try{ AU.pause(); }catch(err){}
+            try{ AU.currentTime = 0; }catch(err){}
+        }
+        if(typeof S !== 'undefined'){
+            S.ip = false;
+            S.il = false;
+            S.ct = null;
+            if(typeof UB === 'function') UB();
+            if(typeof updateOG === 'function') updateOG(null);
+        }
+        MP.hide();
     },
     show(){
         if (!S || !S.ct || (!S.ct.id && !S.ct.videoId && !S.ct.title)) {
