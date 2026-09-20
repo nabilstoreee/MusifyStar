@@ -423,6 +423,10 @@ var App={
         
         MP.init();FullPlayer.init();Artist.init();Album.init();Home.render();Search.render();
         if(typeof updateOG==='function') updateOG(null);
+        App.loadSeasonalTheme();
+        App.loadBroadcast();
+        // Poll broadcast updates periodically every 60s
+        setInterval(function() { App.loadBroadcast(); }, 60000);
         App.switch(!navigator.onLine ? 'offline' : 'home');
         lucide.createIcons();
         setTimeout(function(){ App.checkUrl(); }, 1000);
@@ -716,6 +720,164 @@ var App={
             localStorage.setItem('seen_v2_popup_update', 'true');
             popup.remove();
         };
+    },
+    currentSeasonalTheme: null,
+    async loadSeasonalTheme() {
+        try {
+            var res = await fetch('/api/theme');
+            var data = await res.json();
+            if (data && data.status) {
+                App.applySeasonalTheme(data);
+            }
+        } catch (e) {}
+    },
+    applySeasonalTheme(themeData) {
+        App.currentSeasonalTheme = themeData;
+        var themeId = themeData.activeTheme || 'default';
+        var root = document.documentElement;
+        
+        // Remove all previous seasonal theme classes
+        root.classList.remove('theme-seasonal-puasa', 'theme-seasonal-ramadhan', 'theme-seasonal-lebaran', 'theme-seasonal-tahun_baru', 'theme-seasonal-idul_adha');
+        
+        if (themeId && themeId !== 'default') {
+            root.classList.add('theme-seasonal-' + themeId);
+        }
+
+        // Render seasonal banner if on home
+        App.renderSeasonalBanner();
+    },
+    renderSeasonalBanner() {
+        var bannerSlot = gid('seasonal-theme-banner-slot');
+        if (!bannerSlot) return;
+
+        var data = App.currentSeasonalTheme;
+        if (!data || !data.activeTheme || data.activeTheme === 'default' || data.showBanner === false) {
+            bannerSlot.innerHTML = '';
+            return;
+        }
+
+        var details = data.themeDetails || {};
+        var greeting = data.customGreeting || details.bannerSubtitle || 'Selamat menikmati sajian musik terbaik di MusifyStar.';
+        var title = details.bannerTitle || details.name || 'Tema Musiman Aktif';
+        var badge = details.badgeText || details.name || 'Spesial';
+        var icon = details.icon || 'sparkles';
+        var accent = details.accentColor || '#f43f5e';
+
+        bannerSlot.innerHTML = `
+        <div class="mb-4 p-4 rounded-2xl border transition-all duration-500 overflow-hidden relative" style="background: radial-gradient(circle at 80% 20%, ${details.glowColor || 'rgba(255,255,255,0.1)'} 0%, rgba(20,22,30,0.85) 80%); border-color: rgba(255,255,255,0.15); box-shadow: 0 10px 30px -10px ${details.glowColor || 'rgba(0,0,0,0.5)'};">
+            <div class="flex items-start gap-3.5 relative z-10">
+                <div class="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border" style="background: ${details.glowColor || 'rgba(255,255,255,0.1)'}; color: ${accent}; border-color: ${accent}40;">
+                    <i data-lucide="${icon}" class="w-5 h-5 animate-pulse"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                        <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border" style="background: ${accent}20; color: ${accent}; border-color: ${accent}40;">
+                            ${badge}
+                        </span>
+                    </div>
+                    <h3 class="text-sm sm:text-base font-black text-white tracking-tight">${title}</h3>
+                    <p class="text-xs text-white/75 mt-0.5 leading-relaxed font-sans">${greeting}</p>
+                </div>
+            </div>
+        </div>`;
+        if (window.lucide) lucide.createIcons();
+    },
+
+    // BROADCAST HOME ANNOUNCEMENT BANNER CARD
+    currentBroadcast: null,
+    async loadBroadcast() {
+        try {
+            var res = await fetch('/api/broadcast');
+            var data = await res.json();
+            if (data && data.status) {
+                App.applyBroadcast(data);
+            }
+        } catch (e) {}
+    },
+    applyBroadcast(data) {
+        App.currentBroadcast = data;
+        App.renderBroadcastBanner();
+    },
+    renderBroadcastBanner() {
+        var slot = gid('broadcast-announcement-slot');
+        if (!slot) return;
+
+        var data = App.currentBroadcast;
+        if (!data || !data.enabled || !data.text) {
+            slot.innerHTML = '';
+            return;
+        }
+
+        // Check if user dismissed this version
+        var dismissedTime = sessionStorage.getItem('musifystar_dismissed_broadcast');
+        if (data.closable && dismissedTime === data.updatedAt) {
+            slot.innerHTML = '';
+            return;
+        }
+
+        var type = data.type || 'info';
+        var badge = data.badge || 'PENGUMUMAN';
+        var title = data.title || badge;
+        var text = (data.text || '').trim();
+        var icon = data.icon || 'megaphone';
+
+        // Colors based on type matching aesthetic card themes
+        var glowColor = 'rgba(99, 102, 241, 0.25)';
+        var accentColor = '#818cf8';
+        var borderColor = 'rgba(99, 102, 241, 0.35)';
+
+        if (type === 'maintenance') {
+            glowColor = 'rgba(245, 158, 11, 0.25)';
+            accentColor = '#f59e0b';
+            borderColor = 'rgba(245, 158, 11, 0.4)';
+        } else if (type === 'warning') {
+            glowColor = 'rgba(244, 63, 94, 0.25)';
+            accentColor = '#f43f5e';
+            borderColor = 'rgba(244, 63, 94, 0.4)';
+        } else if (type === 'update') {
+            glowColor = 'rgba(16, 185, 129, 0.25)';
+            accentColor = '#10b981';
+            borderColor = 'rgba(16, 185, 129, 0.4)';
+        } else if (type === 'custom') {
+            glowColor = 'rgba(168, 85, 247, 0.25)';
+            accentColor = '#c084fc';
+            borderColor = 'rgba(168, 85, 247, 0.4)';
+        }
+
+        var closeBtn = data.closable ? `
+        <button onclick="App.dismissBroadcast('${data.updatedAt}')" class="p-1.5 rounded-xl hover:bg-white/10 text-white/50 hover:text-white transition-all cursor-pointer shrink-0" title="Tutup pengumuman">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>` : '';
+
+        slot.innerHTML = `
+        <div class="mb-4 p-4 sm:p-5 rounded-2xl border transition-all duration-500 overflow-hidden relative shadow-lg" style="background: radial-gradient(circle at 80% 20%, ${glowColor} 0%, rgba(20, 24, 33, 0.95) 85%); border-color: ${borderColor}; box-shadow: 0 10px 30px -10px ${glowColor};">
+            <div class="flex items-start gap-3.5 relative z-10">
+                <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 border shadow-md" style="background: ${glowColor}; color: ${accentColor}; border-color: ${borderColor};">
+                    <i data-lucide="${icon}" class="w-5 h-5 sm:w-6 sm:h-6 animate-pulse"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <span class="text-[10px] sm:text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border inline-flex items-center gap-1" style="background: ${accentColor}20; color: ${accentColor}; border-color: ${accentColor}40;">
+                            ${badge}
+                        </span>
+                        ${closeBtn}
+                    </div>
+                    <h3 class="text-sm sm:text-base font-black text-white tracking-tight">${title}</h3>
+                    <p class="text-xs sm:text-sm text-white/80 mt-1 leading-relaxed font-sans">${text}</p>
+                </div>
+            </div>
+        </div>`;
+
+        if (window.lucide) lucide.createIcons();
+    },
+    dismissBroadcast(updatedAt) {
+        if (updatedAt) {
+            sessionStorage.setItem('musifystar_dismissed_broadcast', updatedAt);
+        }
+        var slot = gid('broadcast-announcement-slot');
+        if (slot) {
+            slot.innerHTML = '';
+        }
     }
 };
 App.init();Home.fetch();
