@@ -35,7 +35,7 @@ module.exports = async (req, res) => {
         // fs.unlinkSync() temp-file cleanup in api/transcribe.js -- would get cut off
         // mid-flight and effectively never run. Awaiting it here guarantees cleanup
         // always completes before this function returns.
-        const data2 = await getLyrics2(videoId).catch(() => null);
+        const data2 = await getLyrics2(videoId, data1?.title || title, data1?.artist || artist).catch(() => null);
         if (data2 && data2.lyrics && data2.lyrics.lines && data2.lyrics.lines.length > 0) {
             res.status(200).json({
                 status: true,
