@@ -96,12 +96,81 @@ AU.addEventListener('timeupdate',function(){
         checkAndPreloadNext();
     }
 });
-AU.addEventListener('play',function(){S.ip=true;S.il=false;UB();SP();try{AU.playbackRate=S.playbackRate||1.0;}catch(ex){}});
-AU.addEventListener('pause',function(){if(!AU.ended){S.ip=false;UB();ST();}});
+AU.addEventListener('play',function(){S.ip=true;S.il=false;UB();SP();try{AU.playbackRate=S.playbackRate||1.0;}catch(ex){}sendPlaybackHeartbeat(true);});
+AU.addEventListener('pause',function(){if(!AU.ended){S.ip=false;UB();ST();sendPlaybackHeartbeat(false);}});
 AU.addEventListener('waiting',function(){S.il=true;UB();});
-AU.addEventListener('playing',function(){S.il=false;UB();});
-AU.addEventListener('ended',function(){ST();if(typeof handleTrackEnded==='function'&&handleTrackEnded())return;if(S.rm==='one'){AU.currentTime=0;AU.play().catch(function(){});}else if(S.autoNext){NX();}else{S.ip=false;UB();}});
-AU.addEventListener('error',function(){if(AU.src){S.il=false;S.ip=false;UB();}});
+AU.addEventListener('playing',function(){S.il=false;UB();sendPlaybackHeartbeat(true);});
+AU.addEventListener('ended',function(){ST();sendPlaybackHeartbeat(false);if(typeof handleTrackEnded==='function'&&handleTrackEnded())return;if(S.rm==='one'){AU.currentTime=0;AU.play().catch(function(){});}else if(S.autoNext){NX();}else{S.ip=false;UB();}});
+AU.addEventListener('error',function(){if(AU.src){S.il=false;S.ip=false;UB();sendPlaybackHeartbeat(false);}});
+
+function getClientDeviceType() {
+    try {
+        var ua = navigator.userAgent || '';
+        var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+        var isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        var isAndroid = /Android/i.test(ua);
+
+        if (window.isCapacitor || window.Android || ua.includes('MusifyStarAPK') || (isAndroid && ua.includes('wv'))) {
+            return 'android_apk';
+        }
+        if (isStandalone || (isAndroid && ua.includes('Chrome'))) {
+            return 'pwa_chrome';
+        }
+        if (isIOS) {
+            return 'safari_ios';
+        }
+        return 'desktop_web';
+    } catch (e) {
+        return 'desktop_web';
+    }
+}
+
+// Real-Time Active Listeners Analytics Heartbeat
+var musifySessionId = (function() {
+    try {
+        var sid = sessionStorage.getItem('musify_session_id');
+        if (!sid) {
+            sid = 'ms_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+            sessionStorage.setItem('musify_session_id', sid);
+        }
+        return sid;
+    } catch (e) {
+        return 'ms_' + Math.random().toString(36).substring(2, 10);
+    }
+})();
+
+var lastHeartbeatTime = 0;
+function sendPlaybackHeartbeat(isPlaying) {
+    var now = Date.now();
+    if (isPlaying && (now - lastHeartbeatTime < 8000)) return;
+    lastHeartbeatTime = now;
+
+    var track = S.ct;
+    try {
+        fetch('/api/analytics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'heartbeat',
+                sessionId: musifySessionId,
+                isPlaying: Boolean(isPlaying),
+                id: track ? (track.id || track.videoId || '') : '',
+                title: track ? (track.title || '') : '',
+                artist: track ? (track.artist || '') : '',
+                image: track ? (track.image || track.cover || track.thumbnail || '') : '',
+                duration: track ? (track.duration || '') : '',
+                album: track ? (track.album || '') : '',
+                device: getClientDeviceType()
+            })
+        }).catch(function() {});
+    } catch(e) {}
+}
+
+setInterval(function() {
+    if (typeof S !== 'undefined' && S.ip && S.ct) {
+        sendPlaybackHeartbeat(true);
+    }
+}, 30000);
 
 // ---- MEDIA SESSION (kontrol next/prev/play/pause di notifikasi & lockscreen) ----
 if('mediaSession' in navigator){
@@ -891,6 +960,9 @@ function PK(s,i){
 
 function loadTrack(track,resumeAt){
     if(!track)return;
+    if(typeof Maintenance !== 'undefined' && Maintenance.blockIfActive && Maintenance.blockIfActive({ source: 'loadTrack' })){
+        return;
+    }
     hasPrefetchedNext = false;
     isPreloadingNext = false;
     ST();
@@ -958,6 +1030,9 @@ async function fetchAudioAndPlay(track,resumeAt){
 
 function TP(){
     if(!S.ct)return;
+    if(typeof Maintenance !== 'undefined' && Maintenance.blockIfActive && Maintenance.blockIfActive({ source: 'togglePlay' })){
+        return;
+    }
     if(!AU.src){
         loadTrack(S.ct);
         return;
