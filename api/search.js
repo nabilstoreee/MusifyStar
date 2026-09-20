@@ -1,4 +1,5 @@
 const axios = require('axios');
+const analytics = require('./analytics.js');
 
 function findAllKeys(arr, key, results) {
     if (arr === null || typeof arr !== 'object') return;
@@ -62,6 +63,11 @@ module.exports = async (req, res) => {
     const type = String(req.query.type || 'all').trim(); // all, songs, playlists
 
     if (!query) return res.status(400).json({ status: false, creator: 'Nanzz', message: 'Parameter query diperlukan' });
+
+    // Only record search if explicitly flagged as real user search from search bar
+    if (req.query.userSearch === '1' || req.query.isUserSearch === '1' || req.headers['x-user-search'] === '1') {
+        try { analytics.recordSearch(query); } catch (e) {}
+    }
 
     let urlVid = '';
     if (query.includes('youtube.com/') || query.includes('youtu.be/')) {
