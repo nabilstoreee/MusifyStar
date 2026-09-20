@@ -1,6 +1,6 @@
 {
-  "name": "StarMusify",
-  "description": "Star Studio - Web Music Player",
+  "name": "MusifyStar",
+  "description": "MusifyStar Studio - Web Music Player",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
