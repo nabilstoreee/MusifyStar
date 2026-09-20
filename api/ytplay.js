@@ -27,10 +27,9 @@ async function getDownload(url) {
   const cdns = ["cdn405.savetube.vip", "cdn403.savetube.vip", "cdn401.savetube.vip"];
 
   // Race all CDNs in parallel instead of looping sequentially.
-  // Sequential (3 cdn x 2 attempts x 25s) could take up to 150s, way past
-  // Netlify's ~30s hard function timeout. Racing them means total wall time
-  // is bounded by the single slowest attempt (capped below), not the sum.
-  const PER_CDN_TIMEOUT = 60000; // ms, keep total well under Netlify's 30s cap
+  // Sequential (3 cdn x 2 attempts x 25s) could take up to 150s. Racing them
+  // means total wall time is bounded by the fastest responding CDN.
+  const PER_CDN_TIMEOUT = 25000;
   const controller = new AbortController();
 
   async function tryCdn(cdn) {
@@ -80,7 +79,15 @@ async function getDownload(url) {
   try {
     const result = await Promise.any(cdns.map(cdn =>
       tryCdn(cdn).catch(err => {
-        console.error(`[EXTRACT] ${cdn} failed:`, err.message);
+        const isCanceled = axios.isCancel(err) ||
+          err.name === 'CanceledError' ||
+          err.code === 'ERR_CANCELED' ||
+          err.message === 'canceled' ||
+          controller.signal.aborted;
+
+        if (!isCanceled) {
+          console.warn(`[EXTRACT] ${cdn} attempt failed: ${err.message}`);
+        }
         throw err;
       })
     ));
@@ -93,7 +100,16 @@ async function getDownload(url) {
     ytCache.set(idMatch, { data: result, expireAt: Date.now() + CACHE_TTL });
     return result;
   } catch (aggregateErr) {
-    console.error("[EXTRACT] All CDNs failed:", aggregateErr?.errors?.map(e => e.message).join(" | "));
+    const realErrors = aggregateErr?.errors?.filter(e =>
+      !axios.isCancel(e) &&
+      e.name !== 'CanceledError' &&
+      e.code !== 'ERR_CANCELED' &&
+      e.message !== 'canceled'
+    ) || [];
+
+    if (realErrors.length > 0) {
+      console.warn("[EXTRACT] All CDNs failed:", realErrors.map(e => e.message).join(" | "));
+    }
     return null;
   }
 }
@@ -108,6 +124,28 @@ module.exports = async (req, res) => {
 
     const url = (body.query || body.url || '').trim();
     if (!url) { res.status(400).json({ status: false, message: 'Parameter query wajib diisi' }); return; }
+
+    // Maintenance Mode check: block playback requests for non-admin clients when maintenance is ON
+    try {
+        const maintenanceModule = require('./maintenance.js');
+        const adminAuth = require('./admin-auth.js');
+        const token = req.headers['x-admin-token'] || req.headers.authorization;
+        const cleanToken = token ? token.replace(/^Bearer\s+/i, '').trim() : '';
+        const verifyFn = adminAuth.isValidToken || adminAuth.verifyToken;
+        const isAdmin = verifyFn ? verifyFn(cleanToken) : false;
+
+        if (maintenanceModule.isMaintenanceActive() && !isAdmin) {
+            const mConfig = maintenanceModule.getMaintenanceConfig();
+            return res.status(503).json({
+                status: false,
+                maintenance: true,
+                title: mConfig.title,
+                message: mConfig.message,
+                estimatedEndTime: mConfig.estimatedEndTime,
+                error: 'Server pemutaran musik sedang dalam mode pemeliharaan (maintenance).'
+            });
+        }
+    } catch (mErr) {}
 
     console.log(`[EXTRACT] Starting extraction for: ${url}`);
 
@@ -125,10 +163,10 @@ module.exports = async (req, res) => {
             });
         }
 
-        console.error("[EXTRACT] All methods failed");
+        console.warn("[EXTRACT] All methods failed");
         res.status(503).json({ status: false, error: "Media extraction services are currently overloaded. Please try another track." });
     } catch (err) {
-        console.error("[EXTRACT] Fatal error:", err.message);
+        console.warn("[EXTRACT] Extraction error:", err.message);
         res.status(500).json({ status: false, error: "Internal server error during extraction" });
     }
 };
