@@ -7,37 +7,36 @@ const memoryStore = new Map();
 
 function getFilePaths(filename) {
     const baseName = path.basename(filename);
-    const rootPath = path.join(__dirname, '..', baseName);
-    const tmpPath = path.join(os.tmpdir(), baseName);
-    return { rootPath, tmpPath, key: baseName };
+    const dataDir = path.join(__dirname, '..', 'data json');
+    const rootPath = path.join(dataDir, baseName);
+    const legacyRootPath = path.join(__dirname, '..', baseName);
+
+    const tmpDataDir = path.join(os.tmpdir(), 'data json');
+    const tmpPath = path.join(tmpDataDir, baseName);
+    const legacyTmpPath = path.join(os.tmpdir(), baseName);
+
+    return { dataDir, tmpDataDir, rootPath, legacyRootPath, tmpPath, legacyTmpPath, key: baseName };
 }
 
 function readData(filename, defaultValue) {
-    const { rootPath, tmpPath, key } = getFilePaths(filename);
+    const { rootPath, legacyRootPath, tmpPath, legacyTmpPath, key } = getFilePaths(filename);
 
     if (memoryStore.has(key)) {
         return memoryStore.get(key);
     }
 
-    // Check /tmp first (holds latest runtime updates in serverless)
-    try {
-        if (fs.existsSync(tmpPath)) {
-            const raw = fs.readFileSync(tmpPath, 'utf8');
-            const parsed = JSON.parse(raw);
-            memoryStore.set(key, parsed);
-            return parsed;
-        }
-    } catch (e) {}
-
-    // Check project root (initial pre-packaged config)
-    try {
-        if (fs.existsSync(rootPath)) {
-            const raw = fs.readFileSync(rootPath, 'utf8');
-            const parsed = JSON.parse(raw);
-            memoryStore.set(key, parsed);
-            return parsed;
-        }
-    } catch (e) {}
+    // Check /tmp (in 'data json' directory or root of tmp)
+    const checkPaths = [tmpPath, legacyTmpPath, rootPath, legacyRootPath];
+    for (const p of checkPaths) {
+        try {
+            if (fs.existsSync(p)) {
+                const raw = fs.readFileSync(p, 'utf8');
+                const parsed = JSON.parse(raw);
+                memoryStore.set(key, parsed);
+                return parsed;
+            }
+        } catch (e) {}
+    }
 
     const fallback = defaultValue !== undefined ? defaultValue : null;
     if (fallback !== null) {
@@ -47,26 +46,29 @@ function readData(filename, defaultValue) {
 }
 
 function writeData(filename, data) {
-    const { rootPath, tmpPath, key } = getFilePaths(filename);
+    const { dataDir, tmpDataDir, rootPath, tmpPath, key } = getFilePaths(filename);
 
     // 1. Update in-memory state
     memoryStore.set(key, data);
 
     const jsonStr = JSON.stringify(data, null, 2);
-    let written = false;
 
-    // 2. Try writing to root path (works in container/local)
+    // 2. Try writing to 'data json' directory in project
     try {
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
         fs.writeFileSync(rootPath, jsonStr, 'utf8');
-        written = true;
     } catch (e) {
         // Expected on Vercel/Serverless (EROFS: read-only file system)
     }
 
-    // 3. Try writing to /tmp (always writable in AWS Lambda / Vercel Serverless)
+    // 3. Try writing to /tmp/data json (always writable in AWS Lambda / Vercel Serverless)
     try {
+        if (!fs.existsSync(tmpDataDir)) {
+            fs.mkdirSync(tmpDataDir, { recursive: true });
+        }
         fs.writeFileSync(tmpPath, jsonStr, 'utf8');
-        written = true;
     } catch (e) {}
 
     return true;
