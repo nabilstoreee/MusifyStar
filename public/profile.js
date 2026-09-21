@@ -162,7 +162,7 @@ var Profile = {
 
                 <div>
                     <label class="block text-xs font-semibold text-white/70 mb-1">Email / Nomer Jika Ingin Dibalas <span class="text-white/40 text-[11px]">(Opsional)</span></label>
-                    <input type="text" id="fb-contact" placeholder="Contoh: 08123456789 atau email@gmail.com" class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors" />
+                    <input type="text" id="fb-contact" placeholder="+62 atau email@gmail.com" class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors" />
                 </div>
 
                 <button type="submit" id="fb-submit-btn" class="w-full btn-chrome font-bold py-3.5 rounded-xl active:scale-95 transition-all text-center flex items-center justify-center gap-2 mt-2 shadow-lg cursor-pointer">
@@ -434,9 +434,9 @@ var Profile = {
                 <div class="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
                     <i data-lucide="shield-check" class="w-7 h-7"></i>
                 </div>
-                <h2 class="text-xl font-black text-white tracking-tight">Verifikasi 2FA</h2>
+                <h2 class="text-xl font-black text-white tracking-tight">Verifikasi</h2>
                 <p class="text-xs text-white/60 mt-1">
-                    Masukkan 6 digit kode OTP dari aplikasi Google Authenticator / Authy Anda
+                    Masukkan 6 digit kode OTP dari Authenticator
                 </p>
             </div>
 
@@ -844,8 +844,8 @@ var Profile = {
             if (listeners.sessions && listeners.sessions.length > 0) {
                 sessionsHtml = listeners.sessions.map(function(s) {
                     var devBadge = '';
-                    if (s.device === 'android_apk') devBadge = '<span class="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono">APK</span>';
-                    else if (s.device === 'pwa_chrome') devBadge = '<span class="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono">PWA</span>';
+                    if (s.device === 'android_apk') devBadge = '<span class="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono">Aplikasi Android</span>';
+                    else if (s.device === 'pwa_chrome') devBadge = '<span class="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono">Aplikasi</span>';
                     else if (s.device === 'safari_ios') devBadge = '<span class="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded font-mono">iOS</span>';
                     else devBadge = '<span class="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded font-mono">Web</span>';
 
@@ -1172,7 +1172,7 @@ var Profile = {
                             <i data-lucide="laptop" class="w-4 h-4 text-emerald-400"></i>
                             <span>Device & Browser Breakdown</span>
                         </h3>
-                        <p class="text-xs text-white/60">Grafik statistik platform & perangkat pengguna (Android APK, PWA Chrome, Safari iOS, Desktop Web)</p>
+                        <p class="text-xs text-white/60">Grafik statistik platform & perangkat pengguna Aplikasi Android, Aplikasi Chrome, Safari iOS, Desktop Web</p>
                     </div>
 
                     <div class="flex items-center gap-2 flex-wrap">
@@ -1192,8 +1192,8 @@ var Profile = {
                         ${deviceCombinedBarHtml}
                     </div>
                     <div class="flex items-center justify-between text-[10px] text-white/40 flex-wrap gap-2 pt-1">
-                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Android APK</span>
-                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> PWA Chrome</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Aplikasi Android</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Aplikasi Chrome</span>
                         <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-400"></span> Safari iOS</span>
                         <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> Desktop Web</span>
                     </div>
@@ -1268,11 +1268,11 @@ var Profile = {
                         ${hourlyBarsHtml}
                     </div>
                     <div class="flex items-center justify-between pt-2 border-t border-white/5 text-[10px] text-white/40">
-                        <span>00:00 (Tengah Malam)</span>
+                        <span>00:00 Tengah Malam</span>
                         <span class="text-amber-400 font-bold flex items-center gap-1">
                             <i data-lucide="sparkles" class="w-3 h-3"></i> ${hasPlays ? 'Puncak Terpadat: ' + heatmap.peakSegment : 'Menunggu data pemutaran musik'}
                         </span>
-                        <span>23:59 (Larut Malam)</span>
+                        <span>23:00 Larut Malam</span>
                     </div>
                 </div>
             </div>
@@ -1283,7 +1283,7 @@ var Profile = {
                     <div>
                         <h3 class="text-base font-bold text-white flex items-center gap-2">
                             <i data-lucide="search" class="w-4 h-4 text-rose-400"></i>
-                            <span>Search Query Analytics</span>
+                            <span>Search Query</span>
                         </h3>
                         <p class="text-xs text-white/60">Kata kunci musik & artis yang dicari langsung oleh pengguna di kolom pencarian aplikasi (100% Real-Time)</p>
                     </div>
@@ -1922,18 +1922,18 @@ var Profile = {
                                 <span>Ikon Kartu</span>
                             </label>
                             <select id="admin-broadcast-icon" onchange="Profile.updateBroadcastLivePreview()" class="w-full bg-black/60 border border-white/15 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition-all cursor-pointer">
-                                <option value="megaphone" ${icon === 'megaphone' ? 'selected' : ''}>📢 Pengumuman (Megaphone)</option>
-                                <option value="moon" ${icon === 'moon' ? 'selected' : ''}>🌙 Ramadhan / Bulan (Moon)</option>
-                                <option value="sparkles" ${icon === 'sparkles' ? 'selected' : ''}>✨ Rilis Baru (Sparkles)</option>
-                                <option value="wrench" ${icon === 'wrench' ? 'selected' : ''}>🛠️ Pemeliharaan (Wrench)</option>
-                                <option value="alert-triangle" ${icon === 'alert-triangle' ? 'selected' : ''}>⚠️ Peringatan (Alert)</option>
-                                <option value="bell" ${icon === 'bell' ? 'selected' : ''}>🔔 Notifikasi (Bell)</option>
-                                <option value="zap" ${icon === 'zap' ? 'selected' : ''}>⚡ Promo Kilat (Zap)</option>
-                                <option value="flame" ${icon === 'flame' ? 'selected' : ''}>🔥 Trending (Flame)</option>
-                                <option value="music" ${icon === 'music' ? 'selected' : ''}>🎵 Musik (Music)</option>
-                                <option value="party-popper" ${icon === 'party-popper' ? 'selected' : ''}>🎉 Perayaan (Party)</option>
-                                <option value="heart" ${icon === 'heart' ? 'selected' : ''}>❤️ Favorit (Heart)</option>
-                                <option value="info" ${icon === 'info' ? 'selected' : ''}>ℹ️ Info (Information)</option>
+                                <option value="megaphone" ${icon === 'megaphone' ? 'selected' : ''}>Pengumuman Megaphone</option>
+                                <option value="moon" ${icon === 'moon' ? 'selected' : ''}>Ramadhan Bulan Moon</option>
+                                <option value="sparkles" ${icon === 'sparkles' ? 'selected' : ''}>Rilis Baru Sparkles</option>
+                                <option value="wrench" ${icon === 'wrench' ? 'selected' : ''}>Pemeliharaan Wrench</option>
+                                <option value="alert-triangle" ${icon === 'alert-triangle' ? 'selected' : ''}>Peringatan Alert</option>
+                                <option value="bell" ${icon === 'bell' ? 'selected' : ''}>Notifikasi Bell</option>
+                                <option value="zap" ${icon === 'zap' ? 'selected' : ''}>Promo Kilat Zap</option>
+                                <option value="flame" ${icon === 'flame' ? 'selected' : ''}>Trending Flame</option>
+                                <option value="music" ${icon === 'music' ? 'selected' : ''}>Musik Music</option>
+                                <option value="party-popper" ${icon === 'party-popper' ? 'selected' : ''}>Perayaan Party</option>
+                                <option value="heart" ${icon === 'heart' ? 'selected' : ''}>Favorit Heart</option>
+                                <option value="info" ${icon === 'info' ? 'selected' : ''}>Info Information</option>
                             </select>
                         </div>
 
@@ -1943,11 +1943,11 @@ var Profile = {
                                 <span>Warna & Suasana Tema</span>
                             </label>
                             <select id="admin-broadcast-type" onchange="Profile.updateBroadcastLivePreview()" class="w-full bg-black/60 border border-white/15 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition-all cursor-pointer">
-                                <option value="info" ${type === 'info' ? 'selected' : ''}>🟣 Indigo Midnight (Biru/Ungu Netral)</option>
-                                <option value="update" ${type === 'update' ? 'selected' : ''}>🟢 Emerald Jade (Hijau Ramadhan & Fitur Baru)</option>
-                                <option value="maintenance" ${type === 'maintenance' ? 'selected' : ''}>🟡 Golden Amber (Emas Pemeliharaan & Tips)</option>
-                                <option value="warning" ${type === 'warning' ? 'selected' : ''}>🔴 Ruby Rose (Merah Penting & Urgent)</option>
-                                <option value="custom" ${type === 'custom' ? 'selected' : ''}>🔮 Cyber Fuchsia (Neon Spesial)</option>
+                                <option value="info" ${type === 'info' ? 'selected' : ''}>Indigo Midnight Biru/Ungu Netral</option>
+                                <option value="update" ${type === 'update' ? 'selected' : ''}>Emerald Jade Hijau Ramadhan</option>
+                                <option value="maintenance" ${type === 'maintenance' ? 'selected' : ''}>Golden Amber Emas Pemeliharaan</option>
+                                <option value="warning" ${type === 'warning' ? 'selected' : ''}>Ruby Rose Merah Penting & Urgent</option>
+                                <option value="custom" ${type === 'custom' ? 'selected' : ''}>Cyber Fuchsia Neon Spesial</option>
                             </select>
                         </div>
                     </div>
@@ -2154,8 +2154,9 @@ var Profile = {
 
             var data = await res.json();
             if (data.status) {
+                sessionStorage.removeItem('musifystar_dismissed_broadcast');
                 if (typeof showToast === 'function') {
-                    showToast(enabled ? '📢 Pengumuman berhasil disiarkan ke Beranda!' : '⛔ Pengumuman dinonaktifkan.');
+                    showToast(enabled ? 'Pengumuman berhasil disiarkan ke Beranda!' : 'Pengumuman dinonaktifkan.');
                 }
                 if (window.App && typeof App.applyBroadcast === 'function') {
                     App.applyBroadcast(data.config);
@@ -2173,7 +2174,7 @@ var Profile = {
         } finally {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> <span>📢 Terapkan & Siarkan Pengumuman Sekarang</span>';
+                btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> <span>Terapkan & Siarkan Pengumuman Sekarang</span>';
                 if (window.lucide) lucide.createIcons();
             }
         }
@@ -2726,9 +2727,7 @@ var Profile = {
                     </div>
 
                     <!-- Isi Pesan -->
-                    <div class="bg-black/30 p-3 rounded-xl border border-white/5 text-xs text-white/90 leading-relaxed whitespace-pre-wrap font-sans">
-                        ${item.message}
-                    </div>
+                    <div class="bg-black/30 p-3 rounded-xl border border-white/5 text-xs text-white/90 leading-relaxed whitespace-pre-wrap font-sans break-words">${item.message ? item.message.trim() : ''}</div>
 
                     <!-- Kontak / Info Balasan -->
                     <div class="flex items-center justify-between text-[11px] text-white/60 pt-1 border-t border-white/5">
