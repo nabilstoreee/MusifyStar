@@ -8,6 +8,9 @@
         "includeFiles": [
           "public/**",
           "api/**",
+          "data json/**",
+          "data json/.*",
+          "data json/*.json",
           ".*.json"
         ]
       }
