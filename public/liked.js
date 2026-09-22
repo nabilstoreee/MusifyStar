@@ -101,7 +101,12 @@ var Liked = {
 
         var btnDelete = gid('liked-btn-delete-selected');
         if (btnDelete) {
-            btnDelete.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i> <span>Hapus (' + count + ')</span>';
+            var txt = btnDelete.querySelector('.anim-delete-text');
+            if (txt) {
+                txt.innerText = 'Hapus (' + count + ')';
+            } else {
+                btnDelete.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i> <span>Hapus (' + count + ')</span>';
+            }
             if (count === 0) {
                 btnDelete.classList.add('opacity-50', 'pointer-events-none');
             } else {
@@ -139,7 +144,43 @@ var Liked = {
         lucide.createIcons();
     },
 
-    deleteSelectedSongs() {
+    deleteSingleSong(btn, i) {
+        var row = btn.closest('.liked-song-row') || btn.closest('.rounded-2xl');
+        playDeleteAnimation(btn, function() {
+            if (row) row.classList.add('song-row-deleted');
+            setTimeout(function() {
+                var songs = typeof getLikedSongs === 'function' ? getLikedSongs() : [];
+                if (i >= 0 && i < songs.length) {
+                    var removed = songs.splice(i, 1);
+                    saveLikedSongs(songs);
+                    Liked.render();
+                    if (typeof updateLikeButtons === 'function') updateLikeButtons();
+                    if (typeof showToast === 'function' && removed[0]) {
+                        showToast('Dihapus dari Lagu Disukai: ' + (removed[0].title || ''));
+                    }
+                }
+            }, 380);
+        });
+    },
+
+    clearAll(btn) {
+        var songs = typeof getLikedSongs === 'function' ? getLikedSongs() : [];
+        if (!songs.length) return;
+        playDeleteAnimation(btn, function() {
+            var rows = document.querySelectorAll('#liked-songs-container > div');
+            rows.forEach(function(r) { r.classList.add('song-row-deleted'); });
+            setTimeout(function() {
+                saveLikedSongs([]);
+                Liked.selectMode = false;
+                Liked.selectedIndices.clear();
+                Liked.render();
+                if (typeof updateLikeButtons === 'function') updateLikeButtons();
+                if (typeof showToast === 'function') showToast('Semua lagu disukai berhasil dibersihkan');
+            }, 380);
+        });
+    },
+
+    deleteSelectedSongs(btn) {
         var songs = typeof getLikedSongs === 'function' ? getLikedSongs() : [];
         var count = Liked.selectedIndices.size;
         if (count === 0) {
@@ -147,37 +188,30 @@ var Liked = {
             return;
         }
 
-        var popup = document.createElement('div');
-        popup.className = 'fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in';
-        popup.innerHTML = '<div class="w-full max-w-sm sm:max-w-md rounded-3xl p-6 border border-white/15 shadow-2xl relative" style="animation:slideUp 0.3s ease-out forwards; background: #12141c; box-shadow: 0 20px 40px rgba(239,68,68,0.2);">' +
-            '<div class="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 mb-4">' +
-                '<i data-lucide="trash-2" class="w-6 h-6"></i>' +
-            '</div>' +
-            '<h3 class="font-black text-white text-lg mb-1 tracking-tight">Hapus ' + count + ' Lagu Terpilih?</h3>' +
-            '<p class="text-white/70 text-xs leading-relaxed mb-5">Lagu yang dicentang akan dihapus dari daftar Lagu Disukai.</p>' +
-            '<div class="flex gap-2.5">' +
-                '<button id="confirm-batch-delete-liked-btn" class="flex-1 py-3 px-4 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white font-bold text-xs shadow-lg shadow-red-500/25 transition-all cursor-pointer flex items-center justify-center gap-1.5">' +
-                    '<i data-lucide="trash-2" class="w-4 h-4"></i>' +
-                    '<span>Hapus ' + count + ' Lagu</span>' +
-                '</button>' +
-                '<button onclick="this.closest(\'.fixed\').remove()" class="py-3 px-5 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-white font-semibold text-xs border border-white/10 transition-all cursor-pointer">Batal</button>' +
-            '</div>' +
-        '</div>';
-        document.body.appendChild(popup);
-        lucide.createIcons();
-
-        popup.querySelector('#confirm-batch-delete-liked-btn').onclick = function() {
-            var updated = songs.filter(function(_, idx) {
-                return !Liked.selectedIndices.has(idx);
-            });
-            saveLikedSongs(updated);
-            Liked.selectMode = false;
-            Liked.selectedIndices.clear();
-            popup.remove();
-            Liked.render();
-            if (typeof updateLikeButtons === 'function') updateLikeButtons();
-            if (typeof showToast === 'function') showToast(count + ' lagu dihapus dari Lagu Disukai');
-        };
+        var targetBtn = btn || gid('liked-btn-delete-selected');
+        playDeleteAnimation(targetBtn, function() {
+            var container = gid('liked-songs-container');
+            if (container) {
+                var items = container.querySelectorAll('.liked-song-row');
+                items.forEach(function(row) {
+                    var idx = parseInt(row.getAttribute('data-liked-idx'), 10);
+                    if (Liked.selectedIndices.has(idx)) {
+                        row.classList.add('song-row-deleted');
+                    }
+                });
+            }
+            setTimeout(function() {
+                var updated = songs.filter(function(_, idx) {
+                    return !Liked.selectedIndices.has(idx);
+                });
+                saveLikedSongs(updated);
+                Liked.selectMode = false;
+                Liked.selectedIndices.clear();
+                Liked.render();
+                if (typeof updateLikeButtons === 'function') updateLikeButtons();
+                if (typeof showToast === 'function') showToast(count + ' lagu dihapus dari Lagu Disukai');
+            }, 380);
+        });
     },
 
     render() {
@@ -225,7 +259,11 @@ var Liked = {
 
                 var cardBg = isPlay ? 'bg-[#343a4e] border border-white/40 shadow-xl' : (isCur ? 'bg-[#2e3344] border border-white/30' : 'bg-[#20222c] border border-white/10 hover:bg-[#282b38]');
 
-                return '<div class="rounded-2xl '+cardBg+' p-2.5 flex items-center gap-3 active:scale-[0.98] transition-all duration-300 group shadow-lg shadow-black/25">'+
+                var deleteBtnHtml = window.getAnimDeleteBtnHtml ?
+                    getAnimDeleteBtnHtml('', 'anim-delete-mini', 'event.stopPropagation();Liked.deleteSingleSong(this,'+i+')', 'Hapus dari Lagu Disukai') :
+                    '<button onclick="event.stopPropagation();Liked.deleteSingleSong(this,'+i+')" class="w-9 h-9 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 hover:bg-rose-500/30 active:scale-90 transition-all cursor-pointer" title="Hapus dari Disukai"><i data-lucide="trash-2" class="w-4 h-4"></i></button>';
+
+                return '<div class="liked-song-row rounded-2xl '+cardBg+' p-2.5 flex items-center gap-3 active:scale-[0.98] transition-all duration-300 group shadow-lg shadow-black/25">'+
                     '<div onclick="PK(\'liked\','+i+')" class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">'+
                         '<img src="'+s.cover+'" class="w-14 h-14 rounded-xl object-cover shrink-0 shadow-md border border-white/10" onerror="this.src=\''+FI+'\'" />'+
                         '<div class="min-w-0 flex-1">'+
@@ -233,10 +271,8 @@ var Liked = {
                             '<p class="text-xs text-white/60 truncate mt-0.5">'+es(s.artist)+'</p>'+
                         '</div>'+
                     '</div>'+
-                    '<button onclick="toggleLikeSong('+es(JSON.stringify(s)).replace(/"/g, '&quot;')+');Liked.render();" class="w-9 h-9 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 hover:bg-rose-500/30 active:scale-90 transition-all cursor-pointer" title="Hapus dari Disukai">'+
-                        '<i data-lucide="heart" class="w-4 h-4 fill-current"></i>'+
-                    '</button>'+
-                    '<button onclick="PK(\'liked\','+i+')" class="w-9 h-9 rounded-2xl bg-white/10 text-white flex items-center justify-center shrink-0 hover:bg-white/20 active:scale-90 transition-all cursor-pointer">'+
+                    deleteBtnHtml+
+                    '<button onclick="PK(\'liked\','+i+')" class="w-9 h-9 rounded-2xl bg-white/10 text-white flex items-center justify-center shrink-0 hover:bg-white/20 active:scale-90 transition-all cursor-pointer ml-1">'+
                         playIconHtml+
                     '</button>'+
                 '</div>';
@@ -247,6 +283,10 @@ var Liked = {
 
         var headerHtml = '';
         if (isSelMode) {
+            var deleteSelectedBtnHtml = window.getAnimDeleteBtnHtml ?
+                getAnimDeleteBtnHtml('Hapus (' + Liked.selectedIndices.size + ')', 'text-xs h-8 min-w-[95px] px-3 font-bold ' + (Liked.selectedIndices.size === 0 ? 'opacity-50 pointer-events-none' : ''), 'Liked.deleteSelectedSongs(this)', 'Hapus Lagu Terpilih', 'liked-btn-delete-selected') :
+                `<button id="liked-btn-delete-selected" onclick="Liked.deleteSelectedSongs(this)" class="px-3.5 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-red-500/20 transition-all cursor-pointer ${Liked.selectedIndices.size === 0 ? 'opacity-50 pointer-events-none' : ''}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>Hapus (${Liked.selectedIndices.size})</span></button>`;
+
             headerHtml = `
             <div class="pt-6 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all flex justify-between items-center bg-[#0d0f16]/95 backdrop-blur-xl">
                 <div class="flex items-center gap-2">
@@ -257,10 +297,9 @@ var Liked = {
                     <button id="liked-btn-select-all" onclick="Liked.selectAllSongs()" class="text-xs font-semibold text-white/80 hover:text-white px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 transition-all cursor-pointer">
                         ${Liked.selectedIndices.size === liked.length && liked.length > 0 ? 'Batal Semua' : 'Pilih Semua'}
                     </button>
-                    <button id="liked-btn-delete-selected" onclick="Liked.deleteSelectedSongs()" class="px-3.5 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-red-500/20 transition-all cursor-pointer ${Liked.selectedIndices.size === 0 ? 'opacity-50 pointer-events-none' : ''}">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        <span>Hapus (${Liked.selectedIndices.size})</span>
-                    </button>
+                    <div id="liked-btn-delete-selected-wrap" class="inline-flex">
+                        ${deleteSelectedBtnHtml}
+                    </div>
                 </div>
             </div>`;
         } else {

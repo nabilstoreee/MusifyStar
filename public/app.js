@@ -285,17 +285,244 @@ function updateOfflineButtons() {
     if (window.lucide) lucide.createIcons();
 }
 
+/* ===== Global Animated Delete Button Helpers (Video Interaction) ===== */
+window.getAnimDeleteBtnHtml = function(text, extraClass, onClickCode, title, id) {
+    var hasText = text && String(text).trim().length > 0;
+    var btnClass = 'anim-delete-btn' + (extraClass ? ' ' + extraClass : '') + (!hasText ? ' anim-delete-mini' : '');
+    var idAttr = id ? ' id="' + id + '"' : '';
+    return '<button type="button"' + idAttr + ' class="' + btnClass + '" onclick="' + onClickCode + '" title="' + (title || 'Hapus') + '" aria-label="' + (title || 'Hapus') + '">' +
+        '<div class="anim-trash">' +
+            '<svg class="anim-trash-lid" viewBox="0 0 15 5" fill="none">' +
+                '<path d="M1 4h13M5.5 1h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />' +
+            '</svg>' +
+            '<svg class="anim-trash-box" viewBox="0 0 14 14" fill="none">' +
+                '<path d="M1.5 1l1 11a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5L12.5 1M5 4.5v6M9 4.5v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />' +
+            '</svg>' +
+        '</div>' +
+        (hasText ? '<span class="anim-delete-text">' + text + '</span>' : '') +
+        '<svg class="anim-delete-progress" viewBox="0 0 36 36">' +
+            '<circle class="anim-progress-bg" cx="18" cy="18" r="14" />' +
+            '<circle class="anim-progress-bar" cx="18" cy="18" r="14" />' +
+        '</svg>' +
+        '<div class="anim-check-icon">' +
+            '<svg viewBox="0 0 16 16" fill="none" class="w-4 h-4">' +
+                '<path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />' +
+            '</svg>' +
+        '</div>' +
+    '</button>';
+};
+
+window.playDeleteAnimation = function(btn, onComplete) {
+    if (!btn || btn.classList.contains('animating')) return;
+    btn.classList.add('animating');
+
+    // Phase 1: Open lid & text drops in (0 - 260ms)
+    setTimeout(function() {
+        btn.classList.add('morph-circle');
+    }, 260);
+
+    // Phase 2: Start circular progress ring sweep (320ms)
+    setTimeout(function() {
+        btn.classList.add('progress-fill');
+    }, 320);
+
+    // Phase 3: Checkmark success (1150ms)
+    setTimeout(function() {
+        btn.classList.add('success');
+    }, 1150);
+
+    // Phase 4: Execute onComplete (1550ms)
+    setTimeout(function() {
+        if (typeof onComplete === 'function') onComplete();
+    }, 1550);
+};
+
 var OfflineView = {
+    selectMode: false,
+    selectedIndices: new Set(),
+
+    toggleSelectMode() {
+        OfflineView.selectMode = !OfflineView.selectMode;
+        OfflineView.selectedIndices.clear();
+        OfflineView.render();
+    },
+
+    toggleSongSelect(index) {
+        if (OfflineView.selectedIndices.has(index)) {
+            OfflineView.selectedIndices.delete(index);
+        } else {
+            OfflineView.selectedIndices.add(index);
+        }
+        OfflineView.updateSelectUI();
+    },
+
+    selectAllSongs() {
+        var songs = typeof getOfflineSongs === 'function' ? getOfflineSongs() : [];
+        if (OfflineView.selectedIndices.size === songs.length) {
+            OfflineView.selectedIndices.clear();
+        } else {
+            songs.forEach(function(_, idx) {
+                OfflineView.selectedIndices.add(idx);
+            });
+        }
+        OfflineView.updateSelectUI();
+    },
+
+    updateSelectUI() {
+        var count = OfflineView.selectedIndices.size;
+        var songs = typeof getOfflineSongs === 'function' ? getOfflineSongs() : [];
+        var total = songs.length;
+
+        var countText = gid('offline-select-count-text');
+        if (countText) countText.innerText = count + ' Dipilih';
+
+        var btnSelectAll = gid('offline-btn-select-all');
+        if (btnSelectAll) {
+            btnSelectAll.innerText = count === total && total > 0 ? 'Batal Semua' : 'Pilih Semua';
+        }
+
+        var btnDelete = gid('offline-btn-delete-selected');
+        if (btnDelete) {
+            var txt = btnDelete.querySelector('.anim-delete-text');
+            if (txt) {
+                txt.innerText = 'Hapus (' + count + ')';
+            }
+            if (count === 0) {
+                btnDelete.classList.add('opacity-50', 'pointer-events-none');
+            } else {
+                btnDelete.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        var container = gid('offline-songs-container');
+        if (container) {
+            var items = container.querySelectorAll('.offline-song-row');
+            items.forEach(function(row) {
+                var idx = parseInt(row.getAttribute('data-offline-idx'), 10);
+                var isSel = OfflineView.selectedIndices.has(idx);
+                var cb = row.querySelector('.offline-select-checkbox');
+                var title = row.querySelector('.offline-song-title');
+                if (isSel) {
+                    row.className = 'offline-song-row rounded-2xl bg-purple-500/15 border border-purple-500/40 p-2.5 flex items-center gap-3 active:scale-[0.99] transition-all cursor-pointer shadow-lg shadow-black/25';
+                    if (cb) {
+                        cb.className = 'offline-select-checkbox w-6 h-6 rounded-lg bg-purple-500 border border-purple-400 text-white shadow-md flex items-center justify-center shrink-0 transition-all';
+                    }
+                    if (title) {
+                        title.className = 'offline-song-title font-semibold text-sm text-purple-300 truncate';
+                    }
+                } else {
+                    row.className = 'offline-song-row rounded-2xl bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] p-2.5 flex items-center gap-3 active:scale-[0.99] transition-all cursor-pointer shadow-md';
+                    if (cb) {
+                        cb.className = 'offline-select-checkbox w-6 h-6 rounded-lg bg-black/40 border border-white/30 text-transparent flex items-center justify-center shrink-0 transition-all';
+                    }
+                    if (title) {
+                        title.className = 'offline-song-title font-semibold text-sm text-white/90 truncate';
+                    }
+                }
+            });
+        }
+        if (window.lucide) lucide.createIcons();
+    },
+
+    deleteSelectedSongs(btn) {
+        var songs = typeof getOfflineSongs === 'function' ? getOfflineSongs() : [];
+        var count = OfflineView.selectedIndices.size;
+        if (count === 0) return;
+
+        var targetBtn = btn || gid('offline-btn-delete-selected');
+        playDeleteAnimation(targetBtn, function() {
+            var container = gid('offline-songs-container');
+            if (container) {
+                var items = container.querySelectorAll('.offline-song-row');
+                items.forEach(function(row) {
+                    var idx = parseInt(row.getAttribute('data-offline-idx'), 10);
+                    if (OfflineView.selectedIndices.has(idx)) {
+                        row.classList.add('song-row-deleted');
+                    }
+                });
+            }
+            setTimeout(function() {
+                var remaining = songs.filter(function(_, idx) {
+                    return !OfflineView.selectedIndices.has(idx);
+                });
+                try {
+                    localStorage.setItem('pwa_offline_tracks', JSON.stringify(remaining));
+                } catch(e) {}
+                OfflineView.selectMode = false;
+                OfflineView.selectedIndices.clear();
+                OfflineView.render();
+                if (typeof updateOfflineButtons === 'function') updateOfflineButtons();
+                if (typeof showToast === 'function') showToast(count + ' lagu dihapus dari Mode Offline');
+            }, 380);
+        });
+    },
+
+    deleteSong(btn, song, index) {
+        var row = btn.closest('.offline-song-row') || btn.closest('.flex');
+        playDeleteAnimation(btn, function() {
+            if (row) row.classList.add('song-row-deleted');
+            setTimeout(function() {
+                var list = typeof getOfflineSongs === 'function' ? getOfflineSongs() : [];
+                var vid = song.videoId || song.id;
+                var idx = list.findIndex(function(s) { return (s.videoId === vid || s.id === vid); });
+                if (idx !== -1) {
+                    list.splice(idx, 1);
+                    try { localStorage.setItem('pwa_offline_tracks', JSON.stringify(list)); } catch(e){}
+                }
+                if (typeof updateOfflineButtons === 'function') updateOfflineButtons();
+                OfflineView.render();
+                if (typeof showToast === 'function') {
+                    showToast('Lagu dihapus dari Offline: ' + (song.title || ''));
+                }
+            }, 380);
+        });
+    },
+
+    clearAll(btn) {
+        var offlineSongs = typeof getOfflineSongs === 'function' ? getOfflineSongs() : [];
+        if (!offlineSongs.length) return;
+        playDeleteAnimation(btn, function() {
+            var rows = document.querySelectorAll('.offline-song-row');
+            rows.forEach(function(r) { r.classList.add('song-row-deleted'); });
+            setTimeout(function() {
+                try {
+                    localStorage.removeItem('pwa_offline_tracks');
+                    if (window.caches) {
+                        caches.delete('musifystar-audio-v1').catch(function(){});
+                    }
+                } catch(e) {}
+                OfflineView.render();
+                if (typeof updateOfflineButtons === 'function') updateOfflineButtons();
+                if (typeof showToast === 'function') showToast('Semua lagu offline berhasil dihapus');
+            }, 380);
+        });
+    },
+
     render() {
         var el = gid('view-offline');
         if (!el) return;
 
         var offlineSongs = typeof getOfflineSongs === 'function' ? getOfflineSongs() : [];
         var isOnline = navigator.onLine;
+        var isSelMode = OfflineView.selectMode;
 
         var songsHtml = '';
         if (offlineSongs.length > 0) {
             songsHtml = offlineSongs.map(function(s, i) {
+                if (isSelMode) {
+                    var isSel = OfflineView.selectedIndices.has(i);
+                    return '<div onclick="OfflineView.toggleSongSelect('+i+')" data-offline-idx="'+i+'" class="offline-song-row rounded-2xl '+(isSel ? 'bg-purple-500/15 border border-purple-500/40' : 'bg-white/[0.04] border border-white/10 hover:bg-white/[0.08]')+' p-2.5 flex items-center gap-3 active:scale-[0.99] transition-all cursor-pointer shadow-md">'+
+                        '<div class="offline-select-checkbox w-6 h-6 rounded-lg '+(isSel ? 'bg-purple-500 border border-purple-400 text-white shadow-md' : 'bg-black/40 border border-white/30 text-transparent')+' flex items-center justify-center shrink-0 transition-all">'+
+                            '<i data-lucide="check" class="w-4 h-4 stroke-[3]"></i>'+
+                        '</div>'+
+                        '<img src="'+(s.cover || FI)+'" class="w-12 h-12 rounded-xl object-cover shrink-0 shadow-md border border-white/10" onerror="this.src=\''+FI+'\'" />'+
+                        '<div class="min-w-0 flex-1">'+
+                            '<h3 class="offline-song-title font-semibold text-sm '+(isSel ? 'text-purple-300' : 'text-white/90')+' truncate">'+es(s.title)+'</h3>'+
+                            '<p class="text-xs text-white/50 truncate mt-0.5">'+es(s.artist)+'</p>'+
+                        '</div>'+
+                    '</div>';
+                }
+
                 var isCur = S.ct && (
                     S.ct.id === s.id ||
                     S.ct.videoId === s.videoId ||
@@ -321,7 +548,11 @@ var OfflineView = {
                 var dateStr = s.savedAt ? new Date(s.savedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
                 var safeSongJson = JSON.stringify(s).replace(/"/g, '&quot;');
 
-                return '<div class="flex items-center gap-3 p-2.5 rounded-2xl border '+cardBg+' active:scale-[0.98] transition-all duration-200 group shadow-md">'+
+                var deleteBtnHtml = window.getAnimDeleteBtnHtml ?
+                    getAnimDeleteBtnHtml('', 'anim-delete-mini', 'event.stopPropagation();OfflineView.deleteSong(this,'+safeSongJson+','+i+')', 'Hapus dari Mode Offline') :
+                    '<button onclick="event.stopPropagation();OfflineView.deleteSong(this,'+safeSongJson+','+i+');" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-white/50 hover:text-red-400 border border-white/10 flex items-center justify-center shrink-0 active:scale-90 transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>';
+
+                return '<div class="offline-song-row flex items-center gap-3 p-2.5 rounded-2xl border '+cardBg+' active:scale-[0.98] transition-all duration-200 group shadow-md">'+
                     '<div onclick="PK(\'offline\','+i+')" class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">'+
                         '<div class="w-5 text-center text-white/50 text-xs font-bold group-hover:text-white shrink-0">'+(i + 1)+'</div>'+
                         '<img src="'+(s.cover || FI)+'" class="w-12 h-12 rounded-xl object-cover shrink-0 shadow-md border border-white/10" onerror="this.src=\''+FI+'\'" />'+
@@ -330,10 +561,8 @@ var OfflineView = {
                             '<p class="text-xs text-white/50 truncate mt-0.5">'+es(s.artist)+(dateStr ? ' • <span class="text-white/40">Offline ('+dateStr+')</span>' : '')+'</p>'+
                         '</div>'+
                     '</div>'+
-                    '<button onclick="event.stopPropagation();saveTrackForOffline('+safeSongJson+');" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-white/50 hover:text-red-400 border border-white/10 flex items-center justify-center shrink-0 active:scale-90 transition-all" title="Hapus dari Mode Offline PWA">'+
-                        '<i data-lucide="trash-2" class="w-4 h-4"></i>'+
-                    '</button>'+
-                    '<button onclick="PK(\'offline\','+i+')" class="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-90 transition-all shadow-md">'+
+                    deleteBtnHtml+
+                    '<button onclick="PK(\'offline\','+i+')" class="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-90 transition-all shadow-md ml-1">'+
                         playIconHtml+
                     '</button>'+
                 '</div>';
@@ -353,31 +582,67 @@ var OfflineView = {
             </div>`;
         }
 
-        el.innerHTML = `
-        <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all flex justify-between items-center bg-black/80 backdrop-blur-md">
-            <div>
-                <div class="flex items-center gap-2">
-                    <h1 class="text-2xl font-black text-white tracking-tight drop-shadow-md">Offline Mode</h1>
-                    <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${isOnline ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' : 'border-white/20 text-white/60 bg-white/5'}">${isOnline ? 'Online' : 'Offline'}</span>
-                </div>
-                <p class="text-xs text-white/50 mt-0.5">PWA Storage & Saved Songs</p>
-            </div>
-            <div class="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-md">
-                <i data-lucide="wifi-off" class="w-4 h-4"></i>
-            </div>
-        </div>
+        var headerHtml = '';
+        if (isSelMode) {
+            var deleteSelectedBtnHtml = window.getAnimDeleteBtnHtml ?
+                getAnimDeleteBtnHtml('Hapus (' + OfflineView.selectedIndices.size + ')', 'text-xs h-8 min-w-[95px] px-3 font-bold ' + (OfflineView.selectedIndices.size === 0 ? 'opacity-50 pointer-events-none' : ''), 'OfflineView.deleteSelectedSongs(this)', 'Hapus Lagu Terpilih', 'offline-btn-delete-selected') :
+                `<button id="offline-btn-delete-selected" onclick="OfflineView.deleteSelectedSongs(this)" class="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${OfflineView.selectedIndices.size === 0 ? 'opacity-50 pointer-events-none' : ''}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>Hapus (${OfflineView.selectedIndices.size})</span></button>`;
 
-        <div class="px-4 mt-4 space-y-3">
-            ${offlineSongs.length > 0 ? `
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold text-white/60 uppercase tracking-wider">${offlineSongs.length} Lagu Tersimpan</span>
-                    <button onclick="PK('offline',0)" class="text-xs text-white hover:text-white/80 font-bold hover:underline flex items-center gap-1">
-                        <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> Putar Semua
+            headerHtml = `
+            <div class="pt-6 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all flex justify-between items-center bg-black/90 backdrop-blur-xl">
+                <div class="flex items-center gap-2">
+                    <button onclick="OfflineView.toggleSelectMode()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white active:scale-90 transition-all cursor-pointer" title="Batal"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    <span id="offline-select-count-text" class="text-xs font-bold text-white px-2.5 py-1 rounded-lg bg-purple-500/20 border border-purple-500/30 font-mono tracking-tight">${OfflineView.selectedIndices.size} Dipilih</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="offline-btn-select-all" onclick="OfflineView.selectAllSongs()" class="text-xs font-semibold text-white/80 hover:text-white px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 transition-all cursor-pointer">
+                        ${OfflineView.selectedIndices.size === offlineSongs.length && offlineSongs.length > 0 ? 'Batal Semua' : 'Pilih Semua'}
                     </button>
+                    <div id="offline-btn-delete-selected-wrap" class="inline-flex">
+                        ${deleteSelectedBtnHtml}
+                    </div>
+                </div>
+            </div>`;
+        } else {
+            var clearAllBtnHtml = (offlineSongs.length > 0 && window.getAnimDeleteBtnHtml) ?
+                getAnimDeleteBtnHtml('Hapus Semua', 'text-xs h-8 min-w-[105px] px-3 font-bold', 'OfflineView.clearAll(this)', 'Hapus Semua Lagu Offline') :
+                '';
+
+            headerHtml = `
+            <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all flex justify-between items-center bg-black/80 backdrop-blur-md">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-2xl font-black text-white tracking-tight drop-shadow-md">Offline Mode</h1>
+                        <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${isOnline ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' : 'border-white/20 text-white/60 bg-white/5'}">${isOnline ? 'Online' : 'Offline'}</span>
+                    </div>
+                    <p class="text-xs text-white/50 mt-0.5">PWA Storage & Saved Songs</p>
+                </div>
+                <div class="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-md">
+                    <i data-lucide="wifi-off" class="w-4 h-4"></i>
+                </div>
+            </div>`;
+        }
+
+        el.innerHTML = headerHtml + `
+        <div class="px-4 mt-4 space-y-3">
+            ${offlineSongs.length > 0 && !isSelMode ? `
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span class="text-xs font-semibold text-white/60 uppercase tracking-wider">${offlineSongs.length} Lagu Tersimpan</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="OfflineView.toggleSelectMode()" class="text-xs font-semibold text-white/80 hover:text-white px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                            <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Pilih
+                        </button>
+                        ${clearAllBtnHtml}
+                        <button onclick="PK('offline',0)" class="text-xs text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm">
+                            <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> Putar Semua
+                        </button>
+                    </div>
                 </div>
             ` : ''}
 
-            <div class="space-y-2">${songsHtml}</div>
+            <div id="offline-songs-container" class="space-y-2 pb-24">
+                ${songsHtml}
+            </div>
         </div>`;
 
         if (window.lucide) lucide.createIcons();
@@ -390,31 +655,41 @@ var App={
         localStorage.removeItem('theme');
 
         gid('nav-container').innerHTML=`
-        <div class="fixed bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-lg z-40">
-            <div class="glass-dock rounded-3xl py-1 px-1.5 flex items-center justify-between shadow-2xl">
-                <button onclick="App.switch('home')" id="nav-home" class="nav-item group relative flex flex-col items-center justify-center cursor-pointer select-none touch-manipulation py-1.5 px-2 rounded-2xl transition-all duration-300 active:scale-95">
-                    <i data-lucide="home" class="w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300"></i>
-                    <span class="nav-label text-[9px] font-medium transition-all duration-300 mt-0.5">Home</span>
+        <div class="fixed bottom-3.5 left-1/2 -translate-x-1/2 w-[94%] max-w-md z-40 select-none">
+            <div id="magic-nav-dock" class="magic-nav-dock">
+                <!-- Sliding Fluid Indicator with Centered Active Icon inside Circle -->
+                <div id="magic-indicator" class="magic-indicator" style="transform: translateX(0%);">
+                    <div class="magic-circle">
+                        <div id="magic-circle-icon" class="magic-circle-icon">
+                            <i data-lucide="home"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs -->
+                <button onclick="App.switch('home')" id="nav-home" class="magic-tab" aria-label="Home">
+                    <div class="magic-tab-icon"><i data-lucide="home"></i></div>
+                    <span class="magic-tab-label">Home</span>
                 </button>
-                <button onclick="App.switch('search')" id="nav-search" class="nav-item group relative flex flex-col items-center justify-center cursor-pointer select-none touch-manipulation py-1.5 px-2 rounded-2xl transition-all duration-300 active:scale-95">
-                    <i data-lucide="search" class="w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300"></i>
-                    <span class="nav-label text-[9px] font-medium transition-all duration-300 mt-0.5">Search</span>
+                <button onclick="App.switch('search')" id="nav-search" class="magic-tab" aria-label="Search">
+                    <div class="magic-tab-icon"><i data-lucide="search"></i></div>
+                    <span class="magic-tab-label">Search</span>
                 </button>
-                <button onclick="App.switch('library')" id="nav-library" class="nav-item group relative flex flex-col items-center justify-center cursor-pointer select-none touch-manipulation py-1.5 px-2 rounded-2xl transition-all duration-300 active:scale-95">
-                    <i data-lucide="library" class="w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300"></i>
-                    <span class="nav-label text-[9px] font-medium transition-all duration-300 mt-0.5">Library</span>
+                <button onclick="App.switch('library')" id="nav-library" class="magic-tab" aria-label="Library">
+                    <div class="magic-tab-icon"><i data-lucide="library"></i></div>
+                    <span class="magic-tab-label">Library</span>
                 </button>
-                <button onclick="App.switch('offline')" id="nav-offline" class="nav-item group relative flex flex-col items-center justify-center cursor-pointer select-none touch-manipulation py-1.5 px-2 rounded-2xl transition-all duration-300 active:scale-95">
-                    <i data-lucide="wifi-off" class="w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300"></i>
-                    <span class="nav-label text-[9px] font-medium transition-all duration-300 mt-0.5">Offline</span>
+                <button onclick="App.switch('offline')" id="nav-offline" class="magic-tab" aria-label="Offline">
+                    <div class="magic-tab-icon"><i data-lucide="wifi-off"></i></div>
+                    <span class="magic-tab-label">Offline</span>
                 </button>
-                <button onclick="App.switch('liked')" id="nav-liked" class="nav-item group relative flex flex-col items-center justify-center cursor-pointer select-none touch-manipulation py-1.5 px-2 rounded-2xl transition-all duration-300 active:scale-95">
-                    <i data-lucide="heart" class="w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300"></i>
-                    <span class="nav-label text-[9px] font-medium transition-all duration-300 mt-0.5">Liked</span>
+                <button onclick="App.switch('liked')" id="nav-liked" class="magic-tab" aria-label="Liked">
+                    <div class="magic-tab-icon"><i data-lucide="heart"></i></div>
+                    <span class="magic-tab-label">Liked</span>
                 </button>
-                <button onclick="App.switch('dev')" id="nav-dev" class="nav-item group relative flex flex-col items-center justify-center cursor-pointer select-none touch-manipulation py-1.5 px-2 rounded-2xl transition-all duration-300 active:scale-95">
-                    <i data-lucide="user" class="w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300"></i>
-                    <span class="nav-label text-[9px] font-medium transition-all duration-300 mt-0.5">Profile</span>
+                <button onclick="App.switch('dev')" id="nav-dev" class="magic-tab" aria-label="Profile">
+                    <div class="magic-tab-icon"><i data-lucide="user"></i></div>
+                    <span class="magic-tab-label">Profile</span>
                 </button>
             </div>
         </div>`;
@@ -612,19 +887,38 @@ var App={
             }
         }
 
-        ['home','search','library','offline','liked','dev'].forEach(function(n){
-            var b=gid('nav-'+n);
-            if(!b)return;
-            var isCurrent = (n === t);
+        var navTabs = ['home', 'search', 'library', 'offline', 'liked', 'dev'];
+        var tabIcons = {
+            home: 'home',
+            search: 'search',
+            library: 'library',
+            offline: 'wifi-off',
+            liked: 'heart',
+            dev: 'user'
+        };
+        var activeIdx = navTabs.indexOf(t);
+        var indicator = gid('magic-indicator');
+        if (indicator && activeIdx !== -1) {
+            indicator.style.transform = 'translateX(' + (activeIdx * 100) + '%)';
+        }
 
-            if(isCurrent){
-                b.className = 'nav-item group relative flex flex-col items-center justify-center cursor-pointer select-none touch-manipulation py-1.5 px-2.5 sm:px-3 rounded-2xl bg-white/20 text-white font-bold transition-all duration-300 shadow-md scale-105';
+        var circleIcon = gid('magic-circle-icon');
+        if (circleIcon && tabIcons[t]) {
+            circleIcon.innerHTML = '<i data-lucide="' + tabIcons[t] + '"></i>';
+        }
+
+        navTabs.forEach(function(n){
+            var b = gid('nav-' + n);
+            if(!b) return;
+            if(n === t){
+                b.classList.add('active');
             } else {
-                b.className = 'nav-item group relative flex flex-col items-center justify-center cursor-pointer select-none touch-manipulation py-1.5 px-2 rounded-2xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-300';
+                b.classList.remove('active');
             }
         });
 
-        gid('main-area').scrollTop=0;lucide.createIcons();
+        gid('main-area').scrollTop=0;
+        if (window.lucide) lucide.createIcons();
     },
     renderLiked() {
         if (typeof Liked !== 'undefined') Liked.render();

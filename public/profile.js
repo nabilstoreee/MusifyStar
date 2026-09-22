@@ -163,12 +163,12 @@ var Profile = {
             <!-- Form -->
             <form onsubmit="Profile.submitFeedback(event)" class="space-y-3.5">
                 <div>
-                    <label class="block text-xs font-semibold text-white/70 mb-1">Nama <span class="text-rose-400"></span></label>
+                    <label class="block text-xs font-semibold text-white/70 mb-1">Nama <span class="text-rose-400">*</span></label>
                     <input type="text" id="fb-name" required placeholder="Tuliskan nama Anda" class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors" />
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-white/70 mb-1">Masukkan Pesan <span class="text-rose-400"></span></label>
+                    <label class="block text-xs font-semibold text-white/70 mb-1">Masukkan Pesan <span class="text-rose-400">*</span></label>
                     <textarea id="fb-message" required rows="4" placeholder="Tuliskan saran, kritik, atau pesan yang ingin disampaikan..." class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors resize-none"></textarea>
                 </div>
 
@@ -217,51 +217,36 @@ var Profile = {
                 <p class="text-xs text-white/60 mt-1 max-w-xs mx-auto">Donasi sukarela Anda sangat berharga untuk biaya server & pengembangan aplikasi MusifyStar.</p>
             </div>
 
-            <!-- Official QRIS Card Display -->
-            <div class="bg-white rounded-2xl p-3.5 sm:p-4 text-neutral-900 shadow-xl mb-4 border border-white/30 text-center relative overflow-hidden">
-                <div class="flex items-center justify-between border-b border-neutral-200 pb-2 mb-2.5 px-1">
-                    <div class="flex items-center gap-1.5">
-                        <span class="bg-red-600 text-white font-black text-[11px] px-1.5 py-0.5 rounded tracking-wider">QRIS</span>
-                        <span class="text-[10px] font-bold text-neutral-700">Standar Pembayaran Nasional</span>
-                    </div>
-                    <span class="text-[9px] font-bold text-neutral-500 uppercase tracking-wider">GPN</span>
-                </div>
-
-                <!-- QRIS Image Container -->
-                <div class="relative bg-white rounded-xl p-2 flex items-center justify-center border border-neutral-100">
-                    <img id="qris-img-display" src="/qris.png" alt="QRIS Donasi MusifyStar - Nabil Assihidiqi" class="w-52 h-52 sm:w-60 sm:h-60 object-contain rounded-lg shadow-sm" onerror="this.src='/logo.png'" />
-                </div>
-
-                <div class="mt-2.5 text-center">
-                    <p class="text-xs font-black text-neutral-900 tracking-wide uppercase">NABIL ASSIHIDIQI</p>
-                    <p class="text-[10px] font-medium text-neutral-500">NMID / MusifyStar Official Support</p>
-                </div>
-                
-                <!-- Supported Banks/Wallets Badge -->
-                <div class="mt-2.5 pt-2 border-t border-neutral-100 flex flex-wrap items-center justify-center gap-1 text-[9px] font-semibold text-neutral-600">
-                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">GoPay</span>
-                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">OVO</span>
-                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">DANA</span>
-                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">ShopeePay</span>
-                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">BCA</span>
-                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">Mandiri</span>
-                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">BRI</span>
-                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">BNI</span>
-                </div>
+            <!-- Clean QRIS Image Display (Bebas menu tekan lama browser & tanpa latar putih) -->
+            <div class="w-full flex items-center justify-center mb-4 overflow-hidden rounded-2xl select-none" 
+                 style="-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;"
+                 oncontextmenu="return false;">
+                <img id="qris-img-display" 
+                     src="/qris.png" 
+                     alt="QRIS" 
+                     draggable="false"
+                     oncontextmenu="return false;"
+                     class="w-full h-auto max-h-[65vh] object-contain rounded-2xl shadow-2xl pointer-events-none select-none" 
+                     style="-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;pointer-events:none;"
+                     onerror="this.src='/logo.png'" />
             </div>
 
             <!-- Action Buttons -->
-            <div class="grid grid-cols-2 gap-2">
-                <a href="/qris.png" download="QRIS-Donasi-MusifyStar-Nabil.png" class="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border border-white/10 cursor-pointer text-center">
-                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <div class="grid grid-cols-2 gap-2.5">
+                <button id="btn-save-qris" onclick="Profile.downloadQRIS()" class="py-3 px-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:opacity-95 active:scale-95 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-amber-500/20 cursor-pointer text-center">
+                    <i data-lucide="download" class="w-4 h-4"></i>
                     <span>Simpan QRIS</span>
-                </a>
-                <button onclick="Profile.copyDonationInfo()" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:opacity-90 active:scale-95 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-500/20 cursor-pointer text-center">
-                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                    <span id="copy-donation-btn-text">Salin Info</span>
+                </button>
+                <button onclick="Profile.closeDonationModal()" class="py-3 px-3.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white/90 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border border-white/10 cursor-pointer text-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                    <span>Tutup</span>
                 </button>
             </div>
         </div>`;
+
+        modal.onclick = function(e) {
+            if (e.target === modal) Profile.closeDonationModal();
+        };
 
         document.body.appendChild(modal);
         lucide.createIcons();
@@ -270,6 +255,88 @@ var Profile = {
     closeDonationModal() {
         var modal = gid('musifystar-donation-modal');
         if (modal) modal.remove();
+    },
+
+    downloadQRIS() {
+        var btn = gid('btn-save-qris');
+        if (btn) {
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Menyimpan...</span>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        // Ambil data binary murni gambar PNG via Blob URL agar terhindar dari bug unduhan file .html di Android WebView / iframe
+        fetch('/qris.png')
+            .then(function(res) {
+                if (!res.ok) throw new Error('Network error');
+                return res.blob();
+            })
+            .then(function(blob) {
+                var pngBlob = new Blob([blob], { type: 'image/png' });
+                var blobUrl = URL.createObjectURL(pngBlob);
+                var tempLink = document.createElement('a');
+                tempLink.style.display = 'none';
+                tempLink.href = blobUrl;
+                tempLink.download = 'QRIS-MusifyStar-Nabil.png';
+                document.body.appendChild(tempLink);
+                tempLink.click();
+
+                setTimeout(function() {
+                    document.body.removeChild(tempLink);
+                    URL.revokeObjectURL(blobUrl);
+                    if (btn) {
+                        btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i><span>Tersimpan!</span>';
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                        setTimeout(function() {
+                            if (btn) {
+                                btn.innerHTML = '<i data-lucide="download" class="w-4 h-4"></i><span>Simpan QRIS</span>';
+                                if (typeof lucide !== 'undefined') lucide.createIcons();
+                            }
+                        }, 2500);
+                    }
+                    if (typeof showToast === 'function') {
+                        showToast('Gambar QRIS asli berhasil diunduh');
+                    }
+                }, 150);
+            })
+            .catch(function(err) {
+                console.warn('Fallback download QRIS:', err);
+                // Fallback 1: Canvas export
+                try {
+                    var img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = function() {
+                        var canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth || img.width;
+                        canvas.height = img.naturalHeight || img.height;
+                        var ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob(function(b) {
+                            if (b) {
+                                var url = URL.createObjectURL(b);
+                                var a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'QRIS-MusifyStar-Nabil.png';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                            } else {
+                                window.location.href = '/api/download-qris';
+                            }
+                            if (btn) {
+                                btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i><span>Tersimpan!</span>';
+                                if (typeof lucide !== 'undefined') lucide.createIcons();
+                            }
+                        }, 'image/png');
+                    };
+                    img.onerror = function() {
+                        window.location.href = '/api/download-qris';
+                    };
+                    img.src = '/qris.png';
+                } catch (e) {
+                    window.location.href = '/api/download-qris';
+                }
+            });
     },
 
     copyDonationInfo() {
