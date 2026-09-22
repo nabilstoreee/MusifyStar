@@ -140,6 +140,30 @@ app.get('/api/proxy-audio', (req, res) => {
     });
 });
 
+// Dedicated QRIS download handler ensuring proper PNG MIME type and attachment headers
+app.get(['/api/download-qris', '/download-qris'], (req, res) => {
+    const qrisPath = path.join(__dirname, 'public', 'qris.png');
+    if (fs.existsSync(qrisPath)) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Disposition', 'attachment; filename="QRIS-MusifyStar-Nabil.png"');
+        return res.sendFile(qrisPath);
+    }
+    return res.status(404).send('Not found');
+});
+
+// Serve /qris.png with image/png and optional download attachment
+app.get('/qris.png', (req, res) => {
+    const qrisPath = path.join(__dirname, 'public', 'qris.png');
+    if (fs.existsSync(qrisPath)) {
+        res.setHeader('Content-Type', 'image/png');
+        if (req.query.download === '1') {
+            res.setHeader('Content-Disposition', 'attachment; filename="QRIS-MusifyStar-Nabil.png"');
+        }
+        return res.sendFile(qrisPath);
+    }
+    return res.status(404).send('Not found');
+});
+
 // Static files (from public)
 app.use(express.static(path.join(__dirname, 'public')));
 
