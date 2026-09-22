@@ -22,7 +22,7 @@ var Profile = {
         if (!el) return;
         Profile.fetchAppVersion();
         el.innerHTML = `
-        <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(8, 9, 13, 0.4) 0%, rgba(8, 9, 13, 0.75) 100%), url('/banner.png') center/cover no-repeat; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
+        <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(13, 15, 22, 0.88) 0%, rgba(13, 15, 22, 0.97) 100%), url('/banner.png') center/cover no-repeat; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
             <h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">Profil</h1>
         </div>
         <div class="pt-6 px-4 text-center">
@@ -94,14 +94,26 @@ var Profile = {
                     <p class="text-sm font-medium text-white/90 bg-white/5 p-2.5 rounded-xl border border-white/5">Nabil Assihidiqi</p>
                 </div>
 
-                <!-- Tombol User Feedback di luar di bawah Nabil Assihidiqi -->
-                <div class="pt-2 border-t border-white/10">
-                    <button onclick="Profile.openFeedbackModal()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-rose-500/15 via-purple-500/15 to-transparent hover:from-rose-500/25 hover:to-purple-500/25 border border-rose-500/30 text-white font-semibold text-xs flex items-center justify-between group active:scale-95 transition-all shadow-md" title="Kirim masukan atau pesan ke pengembang">
+                <!-- Tombol User Feedback & Donasi QRIS di luar di bawah Nabil Assihidiqi -->
+                <div class="pt-2 border-t border-white/10 space-y-2">
+                    <button onclick="Profile.openFeedbackModal()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-rose-500/15 via-purple-500/15 to-transparent hover:from-rose-500/25 hover:to-purple-500/25 border border-rose-500/30 text-white font-semibold text-xs flex items-center justify-between group active:scale-95 transition-all shadow-md cursor-pointer" title="Kirim masukan atau pesan ke pengembang">
                         <span class="flex items-center gap-2">
                             <i data-lucide="message-square-plus" class="w-4 h-4 text-rose-400"></i>
                             <span>Kirim Pesan & Masukan Pengguna</span>
                         </span>
                         <i data-lucide="chevron-right" class="w-4 h-4 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition-all"></i>
+                    </button>
+
+                    <!-- Tombol Fitur Donasi Gambar QRIS -->
+                    <button onclick="Profile.openDonationModal()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500/15 via-emerald-500/15 to-transparent hover:from-amber-500/25 hover:to-emerald-500/25 border border-amber-500/30 text-white font-semibold text-xs flex items-center justify-between group active:scale-95 transition-all shadow-md cursor-pointer" title="Donasi & Dukung Pengembang MusifyStar">
+                        <span class="flex items-center gap-2">
+                            <i data-lucide="heart-handshake" class="w-4 h-4 text-amber-400"></i>
+                            <span>Donasi Pengembang (QRIS)</span>
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">QRIS</span>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition-all"></i>
+                        </div>
                     </button>
                 </div>
             </div>
@@ -151,12 +163,12 @@ var Profile = {
             <!-- Form -->
             <form onsubmit="Profile.submitFeedback(event)" class="space-y-3.5">
                 <div>
-                    <label class="block text-xs font-semibold text-white/70 mb-1">Nama <span class="text-rose-400">*</span></label>
+                    <label class="block text-xs font-semibold text-white/70 mb-1">Nama <span class="text-rose-400"></span></label>
                     <input type="text" id="fb-name" required placeholder="Tuliskan nama Anda" class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors" />
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-white/70 mb-1">Masukkan Pesan <span class="text-rose-400">*</span></label>
+                    <label class="block text-xs font-semibold text-white/70 mb-1">Masukkan Pesan <span class="text-rose-400"></span></label>
                     <textarea id="fb-message" required rows="4" placeholder="Tuliskan saran, kritik, atau pesan yang ingin disampaikan..." class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors resize-none"></textarea>
                 </div>
 
@@ -179,6 +191,104 @@ var Profile = {
     closeFeedbackModal() {
         var modal = gid('musifystar-feedback-modal');
         if (modal) modal.remove();
+    },
+
+    // MODAL DONASI QRIS PENGEMBANG
+    openDonationModal() {
+        var existing = gid('musifystar-donation-modal');
+        if (existing) existing.remove();
+
+        var modal = document.createElement('div');
+        modal.id = 'musifystar-donation-modal';
+        modal.className = 'fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-fade-in';
+        modal.innerHTML = `
+        <div class="w-full max-w-sm sm:max-w-md bg-[#11131a] border border-white/20 rounded-3xl shadow-2xl overflow-hidden relative p-5 sm:p-6" style="box-shadow: 0 25px 50px -12px rgba(245,158,11,0.25);">
+            <!-- Close Button -->
+            <button onclick="Profile.closeDonationModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer z-10">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Header -->
+            <div class="text-center mb-4 pt-1">
+                <div class="w-11 h-11 mx-auto mb-2.5 rounded-2xl bg-gradient-to-tr from-amber-500 to-emerald-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/30">
+                    <i data-lucide="heart-handshake" class="w-5 h-5"></i>
+                </div>
+                <h2 class="text-base sm:text-lg font-black text-white tracking-tight">Dukung Pengembang MusifyStar</h2>
+                <p class="text-xs text-white/60 mt-1 max-w-xs mx-auto">Donasi sukarela Anda sangat berharga untuk biaya server & pengembangan aplikasi MusifyStar.</p>
+            </div>
+
+            <!-- Official QRIS Card Display -->
+            <div class="bg-white rounded-2xl p-3.5 sm:p-4 text-neutral-900 shadow-xl mb-4 border border-white/30 text-center relative overflow-hidden">
+                <div class="flex items-center justify-between border-b border-neutral-200 pb-2 mb-2.5 px-1">
+                    <div class="flex items-center gap-1.5">
+                        <span class="bg-red-600 text-white font-black text-[11px] px-1.5 py-0.5 rounded tracking-wider">QRIS</span>
+                        <span class="text-[10px] font-bold text-neutral-700">Standar Pembayaran Nasional</span>
+                    </div>
+                    <span class="text-[9px] font-bold text-neutral-500 uppercase tracking-wider">GPN</span>
+                </div>
+
+                <!-- QRIS Image Container -->
+                <div class="relative bg-white rounded-xl p-2 flex items-center justify-center border border-neutral-100">
+                    <img id="qris-img-display" src="/qris.png" alt="QRIS Donasi MusifyStar - Nabil Assihidiqi" class="w-52 h-52 sm:w-60 sm:h-60 object-contain rounded-lg shadow-sm" onerror="this.src='/logo.png'" />
+                </div>
+
+                <div class="mt-2.5 text-center">
+                    <p class="text-xs font-black text-neutral-900 tracking-wide uppercase">NABIL ASSIHIDIQI</p>
+                    <p class="text-[10px] font-medium text-neutral-500">NMID / MusifyStar Official Support</p>
+                </div>
+                
+                <!-- Supported Banks/Wallets Badge -->
+                <div class="mt-2.5 pt-2 border-t border-neutral-100 flex flex-wrap items-center justify-center gap-1 text-[9px] font-semibold text-neutral-600">
+                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">GoPay</span>
+                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">OVO</span>
+                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">DANA</span>
+                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">ShopeePay</span>
+                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">BCA</span>
+                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">Mandiri</span>
+                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">BRI</span>
+                    <span class="px-1.5 py-0.5 bg-neutral-100 rounded">BNI</span>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="grid grid-cols-2 gap-2">
+                <a href="/qris.png" download="QRIS-Donasi-MusifyStar-Nabil.png" class="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border border-white/10 cursor-pointer text-center">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    <span>Simpan QRIS</span>
+                </a>
+                <button onclick="Profile.copyDonationInfo()" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:opacity-90 active:scale-95 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-500/20 cursor-pointer text-center">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    <span id="copy-donation-btn-text">Salin Info</span>
+                </button>
+            </div>
+        </div>`;
+
+        document.body.appendChild(modal);
+        lucide.createIcons();
+    },
+
+    closeDonationModal() {
+        var modal = gid('musifystar-donation-modal');
+        if (modal) modal.remove();
+    },
+
+    copyDonationInfo() {
+        var text = "Dukungan Donasi QRIS MusifyStar\\nPengembang: Nabil Assihidiqi\\nDapat di-scan melalui aplikasi GoPay, OVO, DANA, ShopeePay, BCA, Mandiri, BRI, BNI, dan semua e-Wallet / Mobile Banking di Indonesia.";
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function() {
+                var btnText = gid('copy-donation-btn-text');
+                if (btnText) {
+                    btnText.innerText = 'Tersalin!';
+                    setTimeout(function() {
+                        if (btnText) btnText.innerText = 'Salin Info';
+                    }, 2500);
+                }
+            }).catch(function() {
+                alert('Info donasi: Scan QRIS atas nama Nabil Assihidiqi di aplikasi pembayaran Anda.');
+            });
+        } else {
+            alert('Info donasi: Scan QRIS atas nama Nabil Assihidiqi di aplikasi pembayaran Anda.');
+        }
     },
 
     // Submit Feedback ke Server

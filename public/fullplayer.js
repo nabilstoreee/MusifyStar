@@ -1,17 +1,22 @@
 var FullPlayer={
     bgGlowEnabled: true,
+    coverMode: 'fit', // 'fit' (proporsional tanpa potong) | 'fill' (kotak penuh 1:1)
+    lastCoverWidth: 0,
+    lastCoverHeight: 0,
     init(){
         try {
             var saved = localStorage.getItem('nanz_bg_glow_enabled');
             if (saved !== null) FullPlayer.bgGlowEnabled = (saved === '1');
+            var savedFit = localStorage.getItem('nanzz_cover_fit_mode');
+            if (savedFit) FullPlayer.coverMode = savedFit;
         } catch (e) {}
         gid('full-container').innerHTML=`
-        <div id="full-player" class="fixed flex flex-col justify-between z-[170] text-white p-4 pt-safe sm:p-6 sm:pt-safe" style="display:none;transition:transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);will-change:transform;transform:translate3d(0,100%,0);top:0;left:0;right:0;bottom:0;overflow:hidden;touch-action:none;">
+        <div id="full-player" class="fixed flex flex-col justify-between z-[170] text-white p-3.5 pt-safe sm:p-6 sm:pt-safe overflow-y-auto overflow-x-hidden hide-scrollbar" style="display:none;transition:transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);will-change:transform;transform:translate3d(0,100%,0);top:0;left:0;right:0;bottom:0;overscroll-behavior:contain;">
             
             <!-- Blurred Artwork Background Container -->
             <div class="player-bg-container">
-                <img id="full-bg-artwork" src="" class="player-bg-blur-img" alt="" />
-                <img id="full-bg-artwork-next" src="" class="player-bg-blur-img transition-opacity duration-300" style="opacity:0; z-index:2;" alt="" />
+                <img id="full-bg-artwork" src="" class="player-bg-blur-img" alt="" onerror="handleImgError(this)" />
+                <img id="full-bg-artwork-next" src="" class="player-bg-blur-img transition-opacity duration-300" style="opacity:0; z-index:2;" alt="" onerror="handleImgError(this)" />
                 <div id="full-bg-glow" class="player-bg-glow"></div>
                 <div class="player-bg-vignette"></div>
             </div>
@@ -33,7 +38,7 @@ var FullPlayer={
             </div>
 
             <!-- Toggle Segment: Cover / Lyrics (Posisi Lingkaran Orange) -->
-            <div class="relative z-10 flex justify-center items-center my-1 flex-shrink-0">
+            <div class="relative z-10 flex justify-center items-center my-0.5 sm:my-1 flex-shrink-0">
                 <div class="inline-flex items-center bg-black/40 backdrop-blur-xl p-1 rounded-full border border-white/15 shadow-inner">
                     <button id="full-tab-cover" onclick="FullPlayer.switchView('cover')" class="px-4 py-1 rounded-full text-xs font-bold transition-all text-white bg-white/20 shadow-md cursor-pointer">
                         Cover
@@ -44,16 +49,24 @@ var FullPlayer={
                 </div>
             </div>
 
-            <!-- Cover Artwork / Compact Lyrics Container (Slightly larger ~85-88% Width) -->
-            <div class="relative z-10 flex-1 flex items-center justify-center my-auto px-4 py-1" style="min-height:0;overflow:hidden;">
-                <div id="full-cover-lyrics-wrap" class="relative w-[86%] sm:w-[88%] max-w-[340px] aspect-square flex items-center justify-center transition-all duration-300">
+            <!-- Cover Artwork / Compact Lyrics Container (Scales gracefully to avoid pushing controls off screen) -->
+            <div class="relative z-10 flex-1 flex items-center justify-center my-auto px-2 sm:px-4 py-1" style="min-height:140px;overflow:hidden;">
+                <div id="full-cover-lyrics-wrap" class="relative w-full max-w-[320px] max-h-[38vh] sm:max-h-[44vh] aspect-square flex items-center justify-center transition-all duration-300">
                     <!-- 1. Cover View Container -->
-                    <div id="full-cover-view" class="w-full h-full relative flex items-center justify-center">
-                        <img id="full-cover" src="" class="w-full h-full object-cover rounded-2xl transition-transform duration-300 border border-white/10 shadow-2xl" />
+                    <div id="full-cover-view" onclick="FullPlayer.toggleCoverFit(event)" class="w-full h-full relative flex items-center justify-center cursor-pointer group select-none" title="Ketuk untuk ubah mode: Utuh / Kotak Penuh">
+                        <img id="full-cover" src="" onerror="handleImgError(this)" class="w-full h-full object-cover rounded-2xl transition-all duration-300 border border-white/10 shadow-2xl" />
                         
                         <!-- Next Cover Overlay for Smooth Transition -->
                         <div id="full-cover-next-overlay" class="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none opacity-0 z-10">
-                            <img id="full-cover-next-img" src="" class="w-full h-full object-cover rounded-2xl border border-white/10 shadow-2xl" />
+                            <img id="full-cover-next-img" src="" onerror="handleImgError(this)" class="w-full h-full object-cover rounded-2xl border border-white/10 shadow-2xl" />
+                        </div>
+
+                        <!-- Mode Toggle Button (Fit / Fill) - HANYA MUNCUL JIKA 16:9 -->
+                        <div id="full-cover-fit-btn-wrap" class="absolute bottom-2.5 right-2.5 z-20 pointer-events-auto" style="display:none;">
+                            <button id="full-cover-fit-btn" onclick="FullPlayer.toggleCoverFit(event)" class="px-2.5 py-1 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-[10px] font-bold text-white/90 flex items-center gap-1.5 shadow-lg active:scale-90 transition-all cursor-pointer" title="Mode Cover: Utuh / Kotak Penuh">
+                                <i id="full-cover-fit-icon" data-lucide="minimize-2" class="w-3 h-3"></i>
+                                <span id="full-cover-fit-label">Utuh</span>
+                            </button>
                         </div>
 
                         <!-- Loading & Overlay -->
@@ -67,7 +80,7 @@ var FullPlayer={
                     <div id="full-lyrics-view" class="hidden w-full h-full relative rounded-2xl bg-black/50 backdrop-blur-2xl border border-white/15 p-3.5 overflow-hidden flex flex-col shadow-2xl">
                         <!-- Mini Header: small cover thumbnail + title/artist, stays above lyrics (does NOT replace the cover) -->
                         <div class="flex items-center gap-3 pb-3 mb-1 border-b border-white/10 shrink-0 relative z-10">
-                            <img id="full-lyrics-mini-cover" src="" class="w-11 h-11 rounded-lg object-cover shadow-md border border-white/10 shrink-0" />
+                            <img id="full-lyrics-mini-cover" src="" onerror="handleImgError(this)" class="w-11 h-11 rounded-lg object-cover shadow-md border border-white/10 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p id="full-lyrics-mini-title" class="text-sm font-bold text-white truncate"></p>
                                 <p id="full-lyrics-mini-artist" class="text-xs text-white/60 truncate"></p>
@@ -150,18 +163,22 @@ var FullPlayer={
                     <span id="time-dur" class="text-[11px] text-white/70 font-mono shrink-0 w-8 font-semibold">0:00</span>
                 </div>
 
-                <!-- Spotify Volume Control -->
-                <div class="flex items-center gap-3 px-2 pt-1 pb-1.5">
-                    <button id="full-vol-icon-btn" onclick="toggleMute()" class="text-white/70 hover:text-white transition cursor-pointer p-1 rounded-full active:scale-90 shrink-0" title="Mute / Unmute">
-                        <i id="full-vol-icon" data-lucide="volume-2" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                <!-- Modern Tactile Glassmorphism Volume Control -->
+                <div class="flex items-center gap-2.5 px-3 py-1.5 my-1 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] backdrop-blur-md transition-all duration-200 group/vol">
+                    <button id="full-vol-icon-btn" onclick="toggleMute()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/[0.06] hover:bg-white/15 active:scale-90 flex items-center justify-center text-white/80 hover:text-white border border-white/10 transition-all cursor-pointer shadow-sm shrink-0" title="Mute / Unmute">
+                        <i id="full-vol-icon" data-lucide="volume-2" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
                     </button>
-                    <div class="relative flex-1 h-1.5 bg-white/20 rounded-full flex items-center group cursor-pointer">
-                        <input type="range" id="vol-bar" min="0" max="100" value="100" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" oninput="setVolume(this.value)" />
-                        <div id="full-vol-progress" class="relative h-full bg-white rounded-full transition-all duration-75" style="width:100%;">
-                            <div class="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div class="relative flex-1 h-2 sm:h-2.5 bg-white/15 rounded-full flex items-center group cursor-pointer overflow-visible">
+                        <input type="range" id="vol-bar" min="0" max="100" value="100" class="absolute -top-3 -bottom-3 left-0 w-full h-8 opacity-0 cursor-pointer z-20" oninput="setVolume(this.value)" />
+                        <div id="full-vol-progress" class="relative h-full rounded-full transition-all duration-75" style="width:100%; background: linear-gradient(90deg, rgba(255,255,255,0.7) 0%, #ffffff 100%); box-shadow: 0 0 10px rgba(255,255,255,0.4);">
+                            <div class="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white border border-white/60 shadow-md shadow-black/50 transition-transform duration-150 group-hover/vol:scale-110 group-active/vol:scale-125 flex items-center justify-center pointer-events-none">
+                                <div class="w-1.5 h-1.5 rounded-full bg-neutral-900/60"></div>
+                            </div>
                         </div>
                     </div>
-                    <span id="full-vol-text" class="text-[11px] text-white/70 font-mono font-semibold w-8 text-right shrink-0">100%</span>
+                    <div class="px-2 py-0.5 rounded-lg bg-white/[0.06] border border-white/10 shrink-0 min-w-[38px] flex items-center justify-center shadow-sm">
+                        <span id="full-vol-text" class="text-[10px] sm:text-[11px] text-white/90 font-mono font-bold tracking-tight">100%</span>
+                    </div>
                 </div>
 
                 <!-- Music Controls (Shuffle Prev Play Next Repeat) -->
@@ -261,6 +278,10 @@ var FullPlayer={
         </div>`;
         lucide.createIcons();
         FullPlayer.updateBgGlowToggleUI();
+        FullPlayer.applyCoverMode();
+        if (typeof S !== 'undefined' && S.ct && typeof UU === 'function') {
+            try { UU(); } catch(e) {}
+        }
     },
     currentViewMode: 'cover',
     switchView(mode) {
@@ -307,15 +328,115 @@ var FullPlayer={
             if (lyricsView) lyricsView.classList.add('hidden');
             if (coverView) coverView.classList.remove('hidden');
             if (wrap) {
-                wrap.classList.add('aspect-square');
                 wrap.classList.remove('h-full');
             }
+            FullPlayer.applyCoverMode();
 
             if (tabCover) {
                 tabCover.className = 'px-4 py-1 rounded-full text-xs font-bold transition-all text-white bg-white/20 shadow-md cursor-pointer';
             }
             if (tabLyrics) {
                 tabLyrics.className = 'px-4 py-1 rounded-full text-xs font-bold transition-all text-white/60 hover:text-white bg-transparent cursor-pointer';
+            }
+        }
+    },
+    resetCoverState() {
+        FullPlayer.lastCoverWidth = 0;
+        FullPlayer.lastCoverHeight = 0;
+    },
+    onCoverLoaded(w, h) {
+        if (w && h && w > 120) {
+            FullPlayer.lastCoverWidth = w;
+            FullPlayer.lastCoverHeight = h;
+        }
+        FullPlayer.applyCoverMode();
+    },
+    isCurrentCover16by9() {
+        var coverImg = gid('full-cover');
+        var w = FullPlayer.lastCoverWidth || (coverImg ? coverImg.naturalWidth : 0);
+        var h = FullPlayer.lastCoverHeight || (coverImg ? coverImg.naturalHeight : 0);
+        if (w && h && w > 120) {
+            // Ratio > 1.25 mengidentifikasi gambar 16:9 (atau 4:3 video thumbnail YouTube).
+            // Cover album standar adalah kotak 1:1 (rasio ~1.0)
+            return (w / h) > 1.25;
+        }
+        if (typeof S !== 'undefined' && S.ct) {
+            var url = String(S.ct.cover || (coverImg ? coverImg.src : '') || '');
+            if ((url.includes('ytimg.com') || S.ct.videoId) && !url.includes('=w') && !url.includes('=s')) {
+                return true;
+            }
+        }
+        return false;
+    },
+    toggleCoverFit(e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        if (!FullPlayer.isCurrentCover16by9()) return; // Tombol dan fitur hanya untuk cover 16:9
+        FullPlayer.coverMode = (FullPlayer.coverMode === 'fit') ? 'fill' : 'fit';
+        try {
+            localStorage.setItem('nanzz_cover_fit_mode', FullPlayer.coverMode);
+        } catch (err) {}
+        FullPlayer.applyCoverMode();
+        if (typeof showToast === 'function') {
+            showToast(FullPlayer.coverMode === 'fit' ? 'Tampilan: Utuh (16:9)' : 'Tampilan: Kotak Penuh (1:1)');
+        }
+    },
+    applyCoverMode() {
+        var wrap = gid('full-cover-lyrics-wrap');
+        var coverImg = gid('full-cover');
+        var nextImg = gid('full-cover-next-img');
+        var fitBtnWrap = gid('full-cover-fit-btn-wrap');
+        var fitLabel = gid('full-cover-fit-label');
+        var fitIcon = gid('full-cover-fit-icon');
+        var coverView = gid('full-cover-view');
+        if (!wrap || !coverImg) return;
+
+        if (FullPlayer.currentViewMode === 'lyrics') {
+            wrap.style.aspectRatio = '';
+            if (fitBtnWrap) fitBtnWrap.style.display = 'none';
+            return;
+        }
+
+        var is16by9 = FullPlayer.isCurrentCover16by9();
+
+        if (coverView) {
+            coverView.style.cursor = is16by9 ? 'pointer' : 'default';
+            coverView.title = is16by9 ? 'Ketuk untuk ubah mode: Utuh / Kotak Penuh' : '';
+        }
+
+        if (!is16by9) {
+            // JIKA BUKAN 16:9: Tombol Utuh/Penuh TIDAK ADA (disembunyikan)
+            if (fitBtnWrap) fitBtnWrap.style.display = 'none';
+            wrap.classList.add('aspect-square');
+            wrap.style.aspectRatio = '1 / 1';
+            coverImg.style.objectFit = 'cover';
+            if (nextImg) nextImg.style.objectFit = 'cover';
+            return;
+        }
+
+        // JIKA FOTO 16:9: Tampilkan tombol Utuh / Penuh
+        if (fitBtnWrap) fitBtnWrap.style.display = 'block';
+
+        if (FullPlayer.coverMode === 'fit') {
+            // Mode Utuh: tampilkan 16:9 utuh tanpa kepotong teks
+            wrap.classList.remove('aspect-square');
+            wrap.style.aspectRatio = '16 / 9';
+            coverImg.style.objectFit = 'cover';
+            if (nextImg) nextImg.style.objectFit = 'cover';
+            if (fitLabel) fitLabel.textContent = 'Utuh';
+            if (fitIcon) {
+                fitIcon.setAttribute('data-lucide', 'minimize-2');
+                lucide.createIcons();
+            }
+        } else {
+            // Mode Penuh: jadikan kotak 1:1
+            wrap.classList.add('aspect-square');
+            wrap.style.aspectRatio = '1 / 1';
+            coverImg.style.objectFit = 'cover';
+            if (nextImg) nextImg.style.objectFit = 'cover';
+            if (fitLabel) fitLabel.textContent = 'Penuh';
+            if (fitIcon) {
+                fitIcon.setAttribute('data-lucide', 'maximize-2');
+                lucide.createIcons();
             }
         }
     },
@@ -331,12 +452,14 @@ var FullPlayer={
         if(typeof MP !== 'undefined' && MP.hide) MP.hide();
         requestAnimationFrame(function(){
             try{
+                if(typeof UU==='function') UU();
+                FullPlayer.applyCoverMode();
                 updateSleepBadge();
                 updateSpeedBadge();
-                if(typeof UB==='function')UB();
-                if(typeof updateLikeButtons==='function')updateLikeButtons();
-                if(typeof updateOfflineButtons==='function')updateOfflineButtons();
-                if(typeof updateVolumeUI==='function')updateVolumeUI();
+                if(typeof UB==='function') UB();
+                if(typeof updateLikeButtons==='function') updateLikeButtons();
+                if(typeof updateOfflineButtons==='function') updateOfflineButtons();
+                if(typeof updateVolumeUI==='function') updateVolumeUI();
                 if(S.ct && typeof FullPlayer.updateBeats === 'function') FullPlayer.updateBeats(S.ct);
             }catch(e){}
         });
@@ -494,6 +617,15 @@ var FullPlayer={
                 var el = gid(id);
                 if (el) el.src = track.cover;
             });
+            var fullCover = gid('full-cover');
+            if (fullCover) {
+                if (!fullCover.src || fullCover.src.endsWith('/logo.png') || fullCover.src === window.location.href) {
+                    fullCover.src = track.cover;
+                }
+                if (fullCover.complete && fullCover.naturalWidth > 120) {
+                    FullPlayer.onCoverLoaded(fullCover.naturalWidth, fullCover.naturalHeight);
+                }
+            }
             var miniCover = gid('full-lyrics-mini-cover');
             if (miniCover) miniCover.src = track.cover;
         }

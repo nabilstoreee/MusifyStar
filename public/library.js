@@ -10,7 +10,7 @@ var Library={
         var isPlaylistsTab = Library.activeTab === 'playlists';
         var isArtistsTab = Library.activeTab === 'artists';
 
-        var html = '<div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(8, 9, 13, 0.4) 0%, rgba(8, 9, 13, 0.75) 100%), url(\'/banner.png\') center/cover no-repeat; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">' +
+        var html = '<div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(13, 15, 22, 0.88) 0%, rgba(13, 15, 22, 0.97) 100%), url(\'/banner.png\') center/cover no-repeat; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">' +
             '<div class="flex items-center justify-between mb-3">' +
                 '<h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">Library</h1>' +
             '</div>' +
@@ -124,13 +124,16 @@ var Library={
     },
     showActions(id){
         var pls=getUserPlaylists();var pl=pls.find(function(p){return p.id===id;});if(!pl)return;
+        var dupInfo = Library.getDuplicateInfo(pl);
         var popup=document.createElement('div');popup.className='fixed inset-0 z-[300] flex items-end justify-center bg-black/60';
         popup.onclick=function(e){if(e.target===popup)popup.remove();};
         popup.innerHTML='<div class="w-full max-w-md rounded-t-3xl p-6 border-t border-white/10 glass-strong" style="animation:slideUp 0.3s ease-out forwards; background: var(--bg-color);">'+
             '<div class="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4"></div>'+
             '<div class="flex items-center gap-3 mb-5"><img src="'+(pl.image||(pl.songs.length>0?pl.songs[0].cover:FI))+'" class="w-12 h-12 rounded-lg object-cover" onerror="this.src=\''+FI+'\'" /><div class="truncate"><h3 class="font-bold text-white truncate">'+es(pl.name)+'</h3><p class="text-white/70 text-xs">'+pl.songs.length+' lagu</p></div></div>'+
-            '<button onclick="this.closest(\'.fixed\').remove();Library.editPlaylist(\''+id+'\')" class="w-full text-left p-4 rounded-xl hover:bg-white/5 flex items-center gap-3 mb-1"><i data-lucide="pencil" class="w-5 h-5 text-white"></i><span class="font-medium text-white">Edit Playlist</span></button>'+
-            '<button onclick="this.closest(\'.fixed\').remove();Library.confirmDelete(\''+id+'\')" class="w-full text-left p-4 rounded-xl hover:bg-red-500/10 flex items-center gap-3"><i data-lucide="trash-2" class="w-5 h-5 text-red-400"></i><span class="font-medium text-red-400">Hapus Playlist</span></button>'+
+            '<button onclick="this.closest(\'.fixed\').remove();Library.cleanDuplicates(\''+id+'\')" class="w-full text-left p-4 rounded-xl hover:bg-white/5 flex items-center gap-3 mb-1 cursor-pointer"><i data-lucide="sparkles" class="w-5 h-5 text-amber-400"></i><div class="flex-1"><span class="font-medium text-white">Bersihkan Lagu Duplikat</span><p class="text-[10px] text-white/50">'+(dupInfo.count > 0 ? dupInfo.count + ' duplikat ditemukan' : 'Deteksi & hapus lagu kembar')+'</p></div>'+(dupInfo.count > 0 ? '<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold font-mono">'+dupInfo.count+'</span>' : '')+'</button>'+
+            '<button onclick="this.closest(\'.fixed\').remove();Library.startSelectMode(\''+id+'\')" class="w-full text-left p-4 rounded-xl hover:bg-white/5 flex items-center gap-3 mb-1 cursor-pointer"><i data-lucide="check-square" class="w-5 h-5 text-rose-400"></i><div class="flex-1"><span class="font-medium text-white">Pilih & Hapus Banyak Lagu</span><p class="text-[10px] text-white/50">Centang beberapa lagu sekaligus</p></div></button>'+
+            '<button onclick="this.closest(\'.fixed\').remove();Library.editPlaylist(\''+id+'\')" class="w-full text-left p-4 rounded-xl hover:bg-white/5 flex items-center gap-3 mb-1 cursor-pointer"><i data-lucide="pencil" class="w-5 h-5 text-white"></i><span class="font-medium text-white">Edit Playlist</span></button>'+
+            '<button onclick="this.closest(\'.fixed\').remove();Library.confirmDelete(\''+id+'\')" class="w-full text-left p-4 rounded-xl hover:bg-red-500/10 flex items-center gap-3 cursor-pointer"><i data-lucide="trash-2" class="w-5 h-5 text-red-400"></i><span class="font-medium text-red-400">Hapus Playlist</span></button>'+
         '</div>';
         document.body.appendChild(popup);lucide.createIcons();
     },
@@ -179,6 +182,207 @@ var Library={
         }
     },
     currentPlaylistId: null,
+    selectMode: false,
+    selectedSongs: new Set(),
+
+    getDuplicateInfo(pl) {
+        if (!pl || !pl.songs || pl.songs.length <= 1) {
+            return { count: 0, indices: [], uniqueSongs: pl ? (pl.songs || []) : [] };
+        }
+        var seen = new Set();
+        var duplicateIndices = [];
+        var uniqueSongs = [];
+        pl.songs.forEach(function(s, idx) {
+            var key = (s.videoId || s.id || (s.title + '---' + s.artist)).toLowerCase().trim();
+            if (seen.has(key)) {
+                duplicateIndices.push(idx);
+            } else {
+                seen.add(key);
+                uniqueSongs.push(s);
+            }
+        });
+        return {
+            count: duplicateIndices.length,
+            indices: duplicateIndices,
+            uniqueSongs: uniqueSongs
+        };
+    },
+
+    cleanDuplicates(id) {
+        var pls = getUserPlaylists();
+        var pl = pls.find(function(p){ return p.id === id; });
+        if (!pl) return;
+        var info = Library.getDuplicateInfo(pl);
+        if (info.count === 0) {
+            if (typeof showToast === 'function') showToast('Tidak ada lagu duplikat di playlist ini');
+            return;
+        }
+
+        var popup = document.createElement('div');
+        popup.className = 'fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in';
+        popup.innerHTML = '<div class="w-full max-w-sm sm:max-w-md rounded-3xl p-6 border border-white/15 shadow-2xl relative" style="animation:slideUp 0.3s ease-out forwards; background: #12141c; box-shadow: 0 20px 40px rgba(245,158,11,0.2);">' +
+            '<div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/30 mb-4">' +
+                '<i data-lucide="sparkles" class="w-6 h-6"></i>' +
+            '</div>' +
+            '<h3 class="font-black text-white text-lg mb-1 tracking-tight">Bersihkan ' + info.count + ' Lagu Duplikat?</h3>' +
+            '<p class="text-white/70 text-xs leading-relaxed mb-5">Ditemukan <strong class="text-amber-300 font-bold">' + info.count + ' lagu duplikat</strong> di playlist "<span class="text-white font-semibold">' + es(pl.name) + '</span>". Lagu kembar akan dihapus dan menyisakan satu versi asli.</p>' +
+            '<div class="flex gap-2.5">' +
+                '<button id="confirm-clean-dup-btn" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:opacity-95 active:scale-95 text-white font-bold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5">' +
+                    '<i data-lucide="trash-2" class="w-4 h-4"></i>' +
+                    '<span>Bersihkan Duplikat</span>' +
+                '</button>' +
+                '<button onclick="this.closest(\'.fixed\').remove()" class="py-3 px-5 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-white font-semibold text-xs border border-white/10 transition-all cursor-pointer">Batal</button>' +
+            '</div>' +
+        '</div>';
+        document.body.appendChild(popup);
+        lucide.createIcons();
+
+        popup.querySelector('#confirm-clean-dup-btn').onclick = function() {
+            pl.songs = info.uniqueSongs;
+            if (!pl.image && pl.songs.length > 0) pl.image = pl.songs[0].cover;
+            saveUserPlaylists(pls);
+            popup.remove();
+            Library.open(id);
+            if (typeof showToast === 'function') showToast('Berhasil membersihkan ' + info.count + ' lagu duplikat!');
+        };
+    },
+
+    toggleSelectMode(id) {
+        Library.selectMode = !Library.selectMode;
+        Library.selectedSongs.clear();
+        Library.open(id);
+    },
+
+    startSelectMode(id) {
+        Library.selectMode = true;
+        Library.selectedSongs.clear();
+        Library.open(id);
+    },
+
+    toggleSongSelect(id, index) {
+        if (Library.selectedSongs.has(index)) {
+            Library.selectedSongs.delete(index);
+        } else {
+            Library.selectedSongs.add(index);
+        }
+        Library.updateSelectUI(id);
+    },
+
+    selectAllSongs(id) {
+        var pls = getUserPlaylists();
+        var pl = pls.find(function(p){ return p.id === id; });
+        if (!pl || !pl.songs) return;
+        if (Library.selectedSongs.size === pl.songs.length) {
+            Library.selectedSongs.clear();
+        } else {
+            pl.songs.forEach(function(_, idx) {
+                Library.selectedSongs.add(idx);
+            });
+        }
+        Library.updateSelectUI(id);
+    },
+
+    updateSelectUI(id) {
+        var count = Library.selectedSongs.size;
+        var pls = getUserPlaylists();
+        var pl = pls.find(function(p){ return p.id === id; });
+        var total = pl && pl.songs ? pl.songs.length : 0;
+
+        var countText = gid('select-count-text');
+        if (countText) countText.innerText = count + ' Dipilih';
+
+        var btnSelectAll = gid('btn-select-all');
+        if (btnSelectAll) {
+            btnSelectAll.innerText = count === total && total > 0 ? 'Batal Semua' : 'Pilih Semua';
+        }
+
+        var btnDelete = gid('btn-delete-selected');
+        if (btnDelete) {
+            btnDelete.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i> <span>Hapus (' + count + ')</span>';
+            if (count === 0) {
+                btnDelete.classList.add('opacity-50', 'pointer-events-none');
+            } else {
+                btnDelete.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        var container = gid('playlist-songs-list');
+        if (container && pl && pl.songs) {
+            var items = container.querySelectorAll('.song-select-row');
+            items.forEach(function(row) {
+                var idx = parseInt(row.getAttribute('data-song-idx'), 10);
+                var isSel = Library.selectedSongs.has(idx);
+                var cb = row.querySelector('.select-checkbox');
+                var title = row.querySelector('.song-title-text');
+                if (isSel) {
+                    row.className = 'song-select-row flex items-center gap-3 p-2.5 rounded-xl cursor-pointer active:scale-[0.99] transition-all select-none bg-rose-500/15 border border-rose-500/40 shadow-sm';
+                    if (cb) {
+                        cb.className = 'select-checkbox w-6 h-6 rounded-lg bg-rose-500 border border-rose-400 text-white shadow-md flex items-center justify-center shrink-0 transition-all';
+                    }
+                    if (title) {
+                        title.className = 'song-title-text text-sm truncate text-rose-300 font-bold';
+                    }
+                } else {
+                    row.className = 'song-select-row flex items-center gap-3 p-2.5 rounded-xl cursor-pointer active:scale-[0.99] transition-all select-none bg-white/[0.03] border border-white/5 hover:bg-white/[0.06]';
+                    if (cb) {
+                        cb.className = 'select-checkbox w-6 h-6 rounded-lg bg-black/40 border border-white/30 text-transparent flex items-center justify-center shrink-0 transition-all';
+                    }
+                    if (title) {
+                        title.className = 'song-title-text text-sm truncate text-white font-medium';
+                    }
+                }
+            });
+        }
+        lucide.createIcons();
+    },
+
+    deleteSelectedSongs(id) {
+        var pls = getUserPlaylists();
+        var pl = pls.find(function(p){ return p.id === id; });
+        if (!pl || !pl.songs) return;
+        var count = Library.selectedSongs.size;
+        if (count === 0) {
+            if (typeof showToast === 'function') showToast('Pilih setidaknya 1 lagu terlebih dahulu');
+            return;
+        }
+
+        var popup = document.createElement('div');
+        popup.className = 'fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in';
+        popup.innerHTML = '<div class="w-full max-w-sm sm:max-w-md rounded-3xl p-6 border border-white/15 shadow-2xl relative" style="animation:slideUp 0.3s ease-out forwards; background: #12141c; box-shadow: 0 20px 40px rgba(239,68,68,0.2);">' +
+            '<div class="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 mb-4">' +
+                '<i data-lucide="trash-2" class="w-6 h-6"></i>' +
+            '</div>' +
+            '<h3 class="font-black text-white text-lg mb-1 tracking-tight">Hapus ' + count + ' Lagu Terpilih?</h3>' +
+            '<p class="text-white/70 text-xs leading-relaxed mb-5">Lagu yang dicentang akan dihapus dari playlist "<span class="text-white font-semibold">' + es(pl.name) + '</span>".</p>' +
+            '<div class="flex gap-2.5">' +
+                '<button id="confirm-batch-delete-btn" class="flex-1 py-3 px-4 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white font-bold text-xs shadow-lg shadow-red-500/25 transition-all cursor-pointer flex items-center justify-center gap-1.5">' +
+                    '<i data-lucide="trash-2" class="w-4 h-4"></i>' +
+                    '<span>Hapus ' + count + ' Lagu</span>' +
+                '</button>' +
+                '<button onclick="this.closest(\'.fixed\').remove()" class="py-3 px-5 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-white font-semibold text-xs border border-white/10 transition-all cursor-pointer">Batal</button>' +
+            '</div>' +
+        '</div>';
+        document.body.appendChild(popup);
+        lucide.createIcons();
+
+        popup.querySelector('#confirm-batch-delete-btn').onclick = function() {
+            pl.songs = pl.songs.filter(function(_, idx) {
+                return !Library.selectedSongs.has(idx);
+            });
+            if (pl.songs.length === 0) {
+                pl.image = '';
+            } else if (!pl.image) {
+                pl.image = pl.songs[0].cover;
+            }
+            saveUserPlaylists(pls);
+            Library.selectMode = false;
+            Library.selectedSongs.clear();
+            popup.remove();
+            Library.open(id);
+            if (typeof showToast === 'function') showToast(count + ' lagu berhasil dihapus');
+        };
+    },
+
     open(id){
         var pls=getUserPlaylists();var pl=pls.find(function(p){return p.id===id;});if(!pl)return;
         Library.currentPlaylistId = id;
@@ -195,22 +399,47 @@ var Library={
         }
         modal.style.display = 'flex';
         
-        var html=`
+        var dupInfo = Library.getDuplicateInfo(pl);
+        var isSelMode = Library.selectMode;
+
+        var headerHtml = '';
+        if (isSelMode) {
+            headerHtml = `
+            <div class="flex items-center justify-between p-3.5 pt-safe bg-[#0d0f16]/95 backdrop-blur-xl border-b border-white/10 shadow-2xl sticky top-0 left-0 w-full z-[100] transition-all" id="library-header">
+                <div class="flex items-center gap-2">
+                    <button onclick="Library.toggleSelectMode('${id}')" class="glass glass-hover rounded-full text-white/80 hover:text-white p-2 active:scale-90 transition-all cursor-pointer" title="Keluar"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    <span id="select-count-text" class="text-xs font-bold text-white px-2.5 py-1 rounded-lg bg-rose-500/20 border border-rose-500/30 font-mono tracking-tight">${Library.selectedSongs.size} Dipilih</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn-select-all" onclick="Library.selectAllSongs('${id}')" class="text-xs font-semibold text-white/80 hover:text-white px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 transition-all cursor-pointer">
+                        ${Library.selectedSongs.size === pl.songs.length && pl.songs.length > 0 ? 'Batal Semua' : 'Pilih Semua'}
+                    </button>
+                    <button id="btn-delete-selected" onclick="Library.deleteSelectedSongs('${id}')" class="px-3.5 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-red-500/20 transition-all cursor-pointer ${Library.selectedSongs.size === 0 ? 'opacity-50 pointer-events-none' : ''}">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Hapus (${Library.selectedSongs.size})</span>
+                    </button>
+                </div>
+            </div>`;
+        } else {
+            headerHtml = `
             <div class="flex items-center gap-3 p-4 pt-safe bg-transparent absolute top-0 left-0 w-full z-[100] transition-all" id="library-header">
-                <button onclick="Library.close()" class="glass glass-hover rounded-full text-white p-3 active:scale-90 shadow-md bg-black/80"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
+                <button onclick="Library.close()" class="glass glass-hover rounded-full text-white p-3 active:scale-90 shadow-md bg-black/80 cursor-pointer"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
                 <div class="flex-1"></div>
                 <div class="flex items-center gap-1 bg-black/80 rounded-full shadow-md">
-                    <button onclick="Library.share('${id}')" class="text-white hover:text-white p-2.5 active:scale-90" title="Bagikan Playlist"><i data-lucide="share-2" class="w-5 h-5"></i></button>
-                    <button onclick="Library.editPlaylist('${id}')" class="text-white hover:text-white p-2.5 active:scale-90" title="Edit Playlist"><i data-lucide="pencil" class="w-5 h-5"></i></button>
-                    <button onclick="Library.confirmDelete('${id}')" class="text-red-400 hover:text-red-300 p-2.5 active:scale-90" title="Hapus Playlist"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                    <button onclick="Library.share('${id}')" class="text-white hover:text-white p-2.5 active:scale-90 cursor-pointer" title="Bagikan Playlist"><i data-lucide="share-2" class="w-5 h-5"></i></button>
+                    <button onclick="Library.editPlaylist('${id}')" class="text-white hover:text-white p-2.5 active:scale-90 cursor-pointer" title="Edit Playlist"><i data-lucide="pencil" class="w-5 h-5"></i></button>
+                    <button onclick="Library.confirmDelete('${id}')" class="text-red-400 hover:text-red-300 p-2.5 active:scale-90 cursor-pointer" title="Hapus Playlist"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
                 </div>
-            </div>
+            </div>`;
+        }
+
+        var html = headerHtml + `
             <div class="flex-1 overflow-y-auto hide-scrollbar pb-36 relative" id="library-content" onscroll="Library.handleScroll()">
-                <div class="relative w-full aspect-square md:aspect-video max-h-[50vh] overflow-hidden -mt-20 mb-6">
+                <div class="relative w-full aspect-square md:aspect-video max-h-[50vh] overflow-hidden ${isSelMode ? 'mt-0' : '-mt-20'} mb-6">
                     <img src="${pl.image||(pl.songs.length>0?pl.songs[0].cover:FI)}" class="w-full h-full object-cover" onerror="this.src='${FI}'" />
                     <div class="absolute inset-0 bg-gradient-to-t from-[#050507] via-[#050507]/60 to-transparent"></div>
                     <div class="absolute bottom-6 left-6 right-6 flex flex-col justify-end items-center text-center z-10">
-                        <img src="${pl.image||(pl.songs.length>0?pl.songs[0].cover:FI)}" class="w-32 h-32 md:w-48 md:h-48 rounded-xl object-cover border border-white/10 mb-4" onerror="this.src='${FI}'" />
+                        <img src="${pl.image||(pl.songs.length>0?pl.songs[0].cover:FI)}" class="w-32 h-32 md:w-48 md:h-48 rounded-xl object-cover border border-white/10 mb-4 shadow-2xl" onerror="this.src='${FI}'" />
                         <div>
                             <p class="text-[10px] font-bold text-white uppercase tracking-[0.2em] mb-1">PLAYLIST LOKAL</p>
                             <h1 class="text-3xl md:text-5xl font-black text-white mb-2 leading-tight line-clamp-2">${es(pl.name)}</h1>
@@ -218,38 +447,91 @@ var Library={
                         </div>
                     </div>
                 </div>
-                <div class="px-6 mb-6 flex items-center gap-4">
-                    ${pl.songs.length>0?`<button onclick="Library.playSong('${id}',0)" class="bg-white hover:bg-gray-200 text-black w-14 h-14 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-white/20"><i data-lucide="play" class="w-7 h-7 fill-current ml-1"></i></button><button onclick="Library.shufflePlaylist('${id}')" class="text-white/70 hover:text-white p-3 rounded-full active:scale-95 bg-white/5 transition-all" title="Acak Urutan (Shuffle)"><i data-lucide="shuffle" class="w-6 h-6"></i></button>`:''}
+
+                <!-- Action Toolbar -->
+                <div class="px-6 mb-5 flex flex-wrap items-center gap-2.5">
+                    ${pl.songs.length>0 && !isSelMode ? `
+                        <button onclick="Library.playSong('${id}',0)" class="bg-white hover:bg-gray-200 text-black w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg shadow-white/20 cursor-pointer" title="Putar Semua">
+                            <i data-lucide="play" class="w-6 h-6 fill-current ml-0.5"></i>
+                        </button>
+                        <button onclick="Library.shufflePlaylist('${id}')" class="text-white/80 hover:text-white w-12 h-12 rounded-full active:scale-95 bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center transition-all cursor-pointer" title="Acak Urutan (Shuffle)">
+                            <i data-lucide="shuffle" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="Library.toggleSelectMode('${id}')" class="px-3.5 py-3 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-all cursor-pointer" title="Hapus Banyak Lagu Sekaligus">
+                            <i data-lucide="check-square" class="w-4 h-4 text-rose-400"></i>
+                            <span>Pilih Banyak</span>
+                        </button>
+                        <button onclick="Library.cleanDuplicates('${id}')" class="px-3.5 py-3 rounded-full ${dupInfo.count > 0 ? 'bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30' : 'bg-white/10 text-white border-white/10 hover:bg-white/20'} active:scale-95 text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer" title="Pembersih Lagu Duplikat">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+                            <span>${dupInfo.count > 0 ? 'Duplikat (' + dupInfo.count + ')' : 'Cek Duplikat'}</span>
+                        </button>
+                    ` : ''}
                 </div>
+
+                <!-- Duplicate Songs Alert Banner -->
+                ${dupInfo.count > 0 && !isSelMode ? `
+                    <div class="mx-6 mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent border border-amber-500/30 flex items-center justify-between gap-3 shadow-lg">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0 text-amber-400">
+                                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-amber-300">Ada ${dupInfo.count} Lagu Duplikat</p>
+                                <p class="text-[10px] text-amber-200/80 truncate">Hapus lagu kembar agar playlist rapi</p>
+                            </div>
+                        </div>
+                        <button onclick="Library.cleanDuplicates('${id}')" class="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-black text-xs shrink-0 shadow-md transition-all cursor-pointer flex items-center gap-1">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            <span>Bersihkan</span>
+                        </button>
+                    </div>
+                ` : ''}
         `;
+
         if(pl.songs.length===0){
             html+='<div class="text-center text-white/70 mt-10"><p>Belum ada lagu</p></div>';
         } else {
-            html+='<div id="playlist-songs-list" class="space-y-1 px-4">';
+            html+='<div id="playlist-songs-list" class="space-y-1.5 px-4">';
             pl.songs.forEach(function(s,i){
-                var isCur = S.ct && (
-                    S.ct.id === s.id ||
-                    S.ct.videoId === s.videoId ||
-                    (S.ct.title === s.title && S.ct.artist === s.artist)
-                );
-                var isPlay = isCur && S.ip;
-                var isLoad = isCur && S.il;
-
-                var iconOverlay = '';
-                if (isLoad) {
-                    iconOverlay = '<div class="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>';
-                } else if (isPlay) {
-                    iconOverlay = '<div class="flex items-end justify-center gap-[2px] w-4 h-4 pb-0.5"><span class="w-[2px] bg-rose-400 rounded-full animate-eq-1"></span><span class="w-[2px] bg-rose-400 rounded-full animate-eq-2"></span><span class="w-[2px] bg-rose-400 rounded-full animate-eq-3"></span></div>';
-                } else if (isCur) {
-                    iconOverlay = '<i data-lucide="pause" class="w-4 h-4 text-rose-400 fill-current"></i>';
+                if (isSelMode) {
+                    var isSel = Library.selectedSongs.has(i);
+                    html += '<div onclick="Library.toggleSongSelect(\''+id+'\','+i+')" data-song-idx="'+i+'" class="song-select-row flex items-center gap-3 p-2.5 rounded-xl cursor-pointer active:scale-[0.99] transition-all select-none ' + (isSel ? 'bg-rose-500/15 border border-rose-500/40 shadow-sm' : 'bg-white/[0.03] border border-white/5 hover:bg-white/[0.06]') + '">' +
+                        '<div class="select-checkbox w-6 h-6 rounded-lg ' + (isSel ? 'bg-rose-500 border border-rose-400 text-white shadow-md' : 'bg-black/40 border border-white/30 text-transparent') + ' flex items-center justify-center shrink-0 transition-all">' +
+                            '<i data-lucide="check" class="w-4 h-4 stroke-[3]"></i>' +
+                        '</div>' +
+                        '<div class="relative w-10 h-10 rounded-lg overflow-hidden shrink-0">' +
+                            '<img src="' + s.cover + '" class="w-full h-full object-cover" onerror="this.src=\'' + FI + '\'" />' +
+                        '</div>' +
+                        '<div class="truncate flex-1 min-w-0">' +
+                            '<p class="song-title-text text-sm truncate ' + (isSel ? 'text-rose-300 font-bold' : 'text-white font-medium') + '">' + es(s.title) + '</p>' +
+                            '<p class="text-white/60 text-xs truncate">' + es(s.artist) + '</p>' +
+                        '</div>' +
+                    '</div>';
                 } else {
-                    iconOverlay = '<i data-lucide="play" class="w-4 h-4 text-white fill-white"></i>';
+                    var isCur = S.ct && (
+                        S.ct.id === s.id ||
+                        S.ct.videoId === s.videoId ||
+                        (S.ct.title === s.title && S.ct.artist === s.artist)
+                    );
+                    var isPlay = isCur && S.ip;
+                    var isLoad = isCur && S.il;
+
+                    var iconOverlay = '';
+                    if (isLoad) {
+                        iconOverlay = '<div class="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>';
+                    } else if (isPlay) {
+                        iconOverlay = '<div class="flex items-end justify-center gap-[2px] w-4 h-4 pb-0.5"><span class="w-[2px] bg-rose-400 rounded-full animate-eq-1"></span><span class="w-[2px] bg-rose-400 rounded-full animate-eq-2"></span><span class="w-[2px] bg-rose-400 rounded-full animate-eq-3"></span></div>';
+                    } else if (isCur) {
+                        iconOverlay = '<i data-lucide="pause" class="w-4 h-4 text-rose-400 fill-current"></i>';
+                    } else {
+                        iconOverlay = '<i data-lucide="play" class="w-4 h-4 text-white fill-white"></i>';
+                    }
+
+                    var rowBg = isPlay ? 'bg-gradient-to-r from-rose-500/20 via-rose-500/10 to-transparent border border-rose-500/30 shadow-md' : (isCur ? 'bg-white/10 border border-white/20' : 'hover:bg-white/5 border border-transparent');
+                    var titleClass = isCur ? 'text-rose-400 font-bold' : 'text-white font-medium';
+
+                    html+='<div class="flex items-center gap-2 p-2 rounded-lg active:scale-[0.98] ' + rowBg + '"><div onclick="Library.playSong(\''+id+'\','+i+')" class="flex items-center gap-3 flex-1 cursor-pointer overflow-hidden"><div class="relative w-10 h-10 rounded overflow-hidden shrink-0"><img src="'+s.cover+'" class="w-full h-full object-cover" onerror="this.src=\'' + FI + '\'" /><div class="absolute inset-0 bg-black/80 ' + (isCur ? 'opacity-100' : 'opacity-0 group-hover:opacity-100') + ' transition-all flex items-center justify-center">' + iconOverlay + '</div></div><div class="truncate flex-1 min-w-0"><p class="text-sm truncate ' + titleClass + '">'+es(s.title)+'</p><p class="text-white/70 text-xs truncate">'+es(s.artist)+'</p></div></div><button onclick="Library.removeSong(\''+id+'\','+i+')" class="text-white/70 hover:text-red-400 p-2 active:scale-90 shrink-0 cursor-pointer" title="Hapus"><i data-lucide="x" class="w-5 h-5"></i></button></div>';
                 }
-
-                var rowBg = isPlay ? 'bg-gradient-to-r from-rose-500/20 via-rose-500/10 to-transparent border border-rose-500/30 shadow-md' : (isCur ? 'bg-white/10 border border-white/20' : 'hover:bg-white/5 border border-transparent');
-                var titleClass = isCur ? 'text-rose-400 font-bold' : 'text-white font-medium';
-
-                html+='<div class="flex items-center gap-2 p-2 rounded-lg active:scale-[0.98] ' + rowBg + '"><div onclick="Library.playSong(\''+id+'\','+i+')" class="flex items-center gap-3 flex-1 cursor-pointer overflow-hidden"><div class="relative w-10 h-10 rounded overflow-hidden shrink-0"><img src="'+s.cover+'" class="w-full h-full object-cover" onerror="this.src=\'' + FI + '\'" /><div class="absolute inset-0 bg-black/80 ' + (isCur ? 'opacity-100' : 'opacity-0 group-hover:opacity-100') + ' transition-all flex items-center justify-center">' + iconOverlay + '</div></div><div class="truncate flex-1 min-w-0"><p class="text-sm truncate ' + titleClass + '">'+es(s.title)+'</p><p class="text-white/70 text-xs truncate">'+es(s.artist)+'</p></div></div><button onclick="Library.removeSong(\''+id+'\','+i+')" class="text-white/70 hover:text-red-400 p-2 active:scale-90 shrink-0" title="Hapus"><i data-lucide="x" class="w-5 h-5"></i></button></div>';
             });
             html+='</div>';
         }
@@ -261,6 +543,8 @@ var Library={
         var modal = gid('library-modal');
         if(modal) modal.style.display = 'none';
         Library.currentPlaylistId = null;
+        Library.selectMode = false;
+        Library.selectedSongs.clear();
     },
     close() {
         if(window.location.pathname.startsWith('/playlist/')) history.pushState({},'', '/');
@@ -268,6 +552,7 @@ var Library={
         if (S.at === 'library') Library.render();
     },
     renderActive() {
+        if (Library.selectMode) return;
         if (S.at === 'library' && S.libTab === 'liked') {
             Library.render();
             return;
