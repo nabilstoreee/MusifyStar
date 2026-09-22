@@ -21,11 +21,7 @@ function getFilePaths(filename) {
 function readData(filename, defaultValue) {
     const { rootPath, legacyRootPath, tmpPath, legacyTmpPath, key } = getFilePaths(filename);
 
-    if (memoryStore.has(key)) {
-        return memoryStore.get(key);
-    }
-
-    // Check /tmp (in 'data json' directory or root of tmp)
+    // Check disk first: /tmp/data json, /tmp, project 'data json', project root
     const checkPaths = [tmpPath, legacyTmpPath, rootPath, legacyRootPath];
     for (const p of checkPaths) {
         try {
@@ -36,6 +32,10 @@ function readData(filename, defaultValue) {
                 return parsed;
             }
         } catch (e) {}
+    }
+
+    if (memoryStore.has(key)) {
+        return memoryStore.get(key);
     }
 
     const fallback = defaultValue !== undefined ? defaultValue : null;

@@ -52,6 +52,17 @@ function loadAnalytics() {
     const initial = getInitialAnalytics();
     const parsed = storage.readData(ANALYTICS_FILE, null);
     if (parsed && typeof parsed === 'object') {
+        const now = Date.now();
+        if (Array.isArray(parsed.activeSessions)) {
+            for (const sess of parsed.activeSessions) {
+                if (sess && sess.sessionId && (now - sess.lastSeen <= 90 * 1000)) {
+                    if (!activeSessions.has(sess.sessionId) || (activeSessions.get(sess.sessionId).lastSeen < sess.lastSeen)) {
+                        activeSessions.set(sess.sessionId, sess);
+                    }
+                }
+            }
+        }
+
         analyticsData = {
             hourly: parsed.hourly || initial.hourly,
             searches: parsed.searches || {},
@@ -60,7 +71,8 @@ function loadAnalytics() {
             totalSearches: parsed.totalSearches || 0,
             duration: parsed.duration || initial.duration,
             devices: parsed.devices || initial.devices,
-            totalDeviceCount: parsed.totalDeviceCount || 0
+            totalDeviceCount: parsed.totalDeviceCount || 0,
+            activeSessions: Array.isArray(parsed.activeSessions) ? parsed.activeSessions : []
         };
         return analyticsData;
     }
@@ -72,6 +84,7 @@ function loadAnalytics() {
 
 function saveAnalytics() {
     if (analyticsData) {
+        analyticsData.activeSessions = Array.from(activeSessions.values());
         storage.writeData(ANALYTICS_FILE, analyticsData);
     }
 }
@@ -251,9 +264,9 @@ function recordHeartbeat(sessionInfo, userAgent) {
         saveAnalytics();
     }
 
-    // Clean up sessions older than 45 seconds
+    // Clean up sessions older than 90 seconds
     for (const [sId, session] of activeSessions.entries()) {
-        if (now - session.lastSeen > 45 * 1000) {
+        if (now - session.lastSeen > 90 * 1000) {
             activeSessions.delete(sId);
         }
     }
@@ -337,7 +350,7 @@ module.exports = function (req, res) {
         if (['clear_searches', 'clear_heatmap', 'clear_listeners', 'clear_sessions', 'clear_duration', 'clear_devices', 'clear_top_played', 'reset_analytics'].includes(type)) {
             const token = req.headers['x-admin-token'] || req.query.token;
             if (!adminAuth.isValidToken(token)) {
-                return res.status(401).json({ status: false, message: 'Akses ditolak: Membutuhkan token admin' });
+                return res.status(401).json({ status: false, message: 'Akses ditolak Membutuhkan token admin' });
             }
             const data = loadAnalytics();
             if (type === 'clear_searches') {
@@ -423,10 +436,10 @@ module.exports = function (req, res) {
         const data = loadAnalytics();
         const now = Date.now();
 
-        // Calculate real-time active listeners (active within 45 seconds and currently playing)
+        // Calculate real-time active listeners (active within 90 seconds and currently playing)
         const activeList = [];
         for (const session of activeSessions.values()) {
-            if (session.isPlaying && now - session.lastSeen <= 45 * 1000) {
+            if (session.isPlaying && now - session.lastSeen <= 90 * 1000) {
                 activeList.push(session);
             }
         }
@@ -483,17 +496,17 @@ module.exports = function (req, res) {
         let peakSegmentName = '-';
         if (totalDailyPlays > 0) {
             let maxSegVal = segments.malam;
-            peakSegmentName = 'Malam (18:00 - 23:59)';
+            peakSegmentName = 'Malam 18:00 - 23:59';
             if (segments.siangSore > maxSegVal) {
                 maxSegVal = segments.siangSore;
-                peakSegmentName = 'Siang & Sore (12:00 - 17:59)';
+                peakSegmentName = 'Siang & Sore 12:00 - 17:59';
             }
             if (segments.pagi > maxSegVal) {
                 maxSegVal = segments.pagi;
-                peakSegmentName = 'Pagi Hari (05:00 - 11:59)';
+                peakSegmentName = 'Pagi Hari 05:00 - 11:59';
             }
             if (segments.diniHari > maxSegVal) {
-                peakSegmentName = 'Dini Hari (00:00 - 04:59)';
+                peakSegmentName = 'Malam Hari (00:00 - 04:59)';
             }
         }
 
@@ -516,11 +529,11 @@ module.exports = function (req, res) {
             avgSeconds: avgSeconds,
             avgMinutesFormatted: totalSessions > 0 ? `${avgMinutes} Menit` : '0 Menit',
             distribution: [
-                { label: '< 5 mnt', count: durationDistribution.quick || 0, pct: Math.round(((durationDistribution.quick || 0) / totalDistCount) * 100), desc: 'Kilat (< 5 menit)' },
-                { label: '5-15 mnt', count: durationDistribution.short || 0, pct: Math.round(((durationDistribution.short || 0) / totalDistCount) * 100), desc: 'Singkat (5-15 menit)' },
-                { label: '15-30 mnt', count: durationDistribution.medium || 0, pct: Math.round(((durationDistribution.medium || 0) / totalDistCount) * 100), desc: 'Standar (15-30 menit)' },
-                { label: '30-60 mnt', count: durationDistribution.long || 0, pct: Math.round(((durationDistribution.long || 0) / totalDistCount) * 100), desc: 'Fokus (30-60 menit)' },
-                { label: '> 60 mnt', count: durationDistribution.extended || 0, pct: Math.round(((durationDistribution.extended || 0) / totalDistCount) * 100), desc: 'Maraton (> 1 jam)' }
+                { label: '5 MENIT', count: durationDistribution.quick || 0, pct: Math.round(((durationDistribution.quick || 0) / totalDistCount) * 100), desc: '5 menit Kilat' },
+                { label: '5-15 MENIT', count: durationDistribution.short || 0, pct: Math.round(((durationDistribution.short || 0) / totalDistCount) * 100), desc: '5-15 Menit Singkat' },
+                { label: '15-30 MENIT', count: durationDistribution.medium || 0, pct: Math.round(((durationDistribution.medium || 0) / totalDistCount) * 100), desc: '15-30 Menit Standar' },
+                { label: '30-60 MENIT', count: durationDistribution.long || 0, pct: Math.round(((durationDistribution.long || 0) / totalDistCount) * 100), desc: '30-60 Menit Fokus' },
+                { label: '1jam MENIT', count: durationDistribution.extended || 0, pct: Math.round(((durationDistribution.extended || 0) / totalDistCount) * 100), desc: '1 jam Maraton' }
             ]
         };
 
@@ -532,8 +545,8 @@ module.exports = function (req, res) {
         const deviceBreakdown = {
             totalDevices: totalDev,
             items: [
-                { key: 'android_apk', label: 'Android APK', count: dev.android_apk || 0, pct: calcDevPct(dev.android_apk || 0), icon: 'smartphone', color: 'emerald', bg: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-                { key: 'pwa_chrome', label: 'PWA Chrome', count: dev.pwa_chrome || 0, pct: calcDevPct(dev.pwa_chrome || 0), icon: 'globe', color: 'amber', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+                { key: 'android_apk', label: 'Android Aplikasi', count: dev.android_apk || 0, pct: calcDevPct(dev.android_apk || 0), icon: 'smartphone', color: 'emerald', bg: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+                { key: 'pwa_chrome', label: 'install Aplikasi', count: dev.pwa_chrome || 0, pct: calcDevPct(dev.pwa_chrome || 0), icon: 'globe', color: 'amber', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
                 { key: 'safari_ios', label: 'Safari iOS', count: dev.safari_ios || 0, pct: calcDevPct(dev.safari_ios || 0), icon: 'apple', color: 'indigo', bg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' },
                 { key: 'desktop_web', label: 'Desktop Web', count: dev.desktop_web || 0, pct: calcDevPct(dev.desktop_web || 0), icon: 'monitor', color: 'purple', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/30' }
             ]
