@@ -7,34 +7,41 @@ const memoryStore = new Map();
 
 function getFilePaths(filename) {
     const baseName = path.basename(filename);
-    const dataDir = path.join(__dirname, '..', 'data json');
-    const rootPath = path.join(dataDir, baseName);
     const standardDataDir = path.join(__dirname, '..', 'data');
     const standardRootPath = path.join(standardDataDir, baseName);
-    const legacyRootPath = path.join(__dirname, '..', baseName);
 
-    const tmpDataDir = path.join(os.tmpdir(), 'data json');
-    const tmpPath = path.join(tmpDataDir, baseName);
     const tmpStandardDir = path.join(os.tmpdir(), 'data');
     const tmpStandardPath = path.join(tmpStandardDir, baseName);
-    const legacyTmpPath = path.join(os.tmpdir(), baseName);
 
-    return { dataDir, standardDataDir, tmpDataDir, tmpStandardDir, rootPath, standardRootPath, legacyRootPath, tmpPath, tmpStandardPath, legacyTmpPath, key: baseName };
+    return { standardDataDir, tmpStandardDir, standardRootPath, tmpStandardPath, key: baseName };
 }
 
 function readData(filename, defaultValue) {
-    const { rootPath, standardRootPath, legacyRootPath, tmpPath, tmpStandardPath, legacyTmpPath, key } = getFilePaths(filename);
+    const { standardRootPath, tmpStandardPath, key } = getFilePaths(filename);
 
-    // Check disk first: /tmp/data json, /tmp/data, /tmp, project 'data json', project 'data', project root
-    const checkPaths = [tmpPath, tmpStandardPath, legacyTmpPath, rootPath, standardRootPath, legacyRootPath];
+    // Pick the most recently updated file between project disk and /tmp disk
+    let latestPath = null;
+    let latestMtime = -1;
+
+    const checkPaths = [standardRootPath, tmpStandardPath];
     for (const p of checkPaths) {
         try {
             if (fs.existsSync(p)) {
-                const raw = fs.readFileSync(p, 'utf8');
-                const parsed = JSON.parse(raw);
-                memoryStore.set(key, parsed);
-                return parsed;
+                const stat = fs.statSync(p);
+                if (stat.mtimeMs > latestMtime) {
+                    latestMtime = stat.mtimeMs;
+                    latestPath = p;
+                }
             }
+        } catch (e) {}
+    }
+
+    if (latestPath) {
+        try {
+            const raw = fs.readFileSync(latestPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            memoryStore.set(key, parsed);
+            return parsed;
         } catch (e) {}
     }
 
@@ -50,21 +57,14 @@ function readData(filename, defaultValue) {
 }
 
 function writeData(filename, data) {
-    const { dataDir, standardDataDir, tmpDataDir, tmpStandardDir, rootPath, standardRootPath, tmpPath, tmpStandardPath, key } = getFilePaths(filename);
+    const { standardDataDir, tmpStandardDir, standardRootPath, tmpStandardPath, key } = getFilePaths(filename);
 
     // 1. Update in-memory state
     memoryStore.set(key, data);
 
     const jsonStr = JSON.stringify(data, null, 2);
 
-    // 2. Try writing to project directories (for local dev environments)
-    try {
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
-        }
-        fs.writeFileSync(rootPath, jsonStr, 'utf8');
-    } catch (e) {}
-
+    // 2. Write to unified single project directory: /data
     try {
         if (!fs.existsSync(standardDataDir)) {
             fs.mkdirSync(standardDataDir, { recursive: true });
@@ -72,14 +72,7 @@ function writeData(filename, data) {
         fs.writeFileSync(standardRootPath, jsonStr, 'utf8');
     } catch (e) {}
 
-    // 3. Try writing to /tmp directories (always writable on Vercel Serverless / AWS Lambda)
-    try {
-        if (!fs.existsSync(tmpDataDir)) {
-            fs.mkdirSync(tmpDataDir, { recursive: true });
-        }
-        fs.writeFileSync(tmpPath, jsonStr, 'utf8');
-    } catch (e) {}
-
+    // 3. Write to /tmp/data (ensures persistence in serverless environments)
     try {
         if (!fs.existsSync(tmpStandardDir)) {
             fs.mkdirSync(tmpStandardDir, { recursive: true });

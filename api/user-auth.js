@@ -140,13 +140,13 @@ function readData() {
         if (!Array.isArray(result.users)) result.users = [];
         if (!result.sessions || typeof result.sessions !== 'object') result.sessions = {};
 
-        // Anti-Tamper Ban Registry Verification & Sync
+        // Anti-Tamper Ban Registry Verification
         const banRegistry = readBanRegistry();
         if (result.users && Array.isArray(result.users)) {
             result.users.forEach(u => {
-                if (u && u.id) {
-                    const reg = banRegistry[u.id] || (u.username && banRegistry[u.username.toLowerCase()]);
-                    if (reg && reg.banType && reg.banType !== 'none') {
+                if (u && u.id && banRegistry[u.id]) {
+                    const reg = banRegistry[u.id];
+                    if (reg.banType && reg.banType !== 'none') {
                         let isStillBanned = true;
                         if (reg.banType === 'temporary' && reg.banExpiresAt) {
                             if (new Date(reg.banExpiresAt).getTime() <= Date.now()) {
@@ -158,18 +158,7 @@ function readData() {
                             u.banReason = reg.banReason;
                             u.banExpiresAt = reg.banExpiresAt;
                             u.banDurationDays = reg.banDurationDays;
-                        } else {
-                            u.banType = 'none';
-                            u.banReason = '';
-                            u.banExpiresAt = null;
-                            u.banDurationDays = null;
                         }
-                    } else if (!reg && u.banType !== 'none') {
-                        // FIX: Jika registry kosong/di-unban, reset status user di users.json juga
-                        u.banType = 'none';
-                        u.banReason = '';
-                        u.banExpiresAt = null;
-                        u.banDurationDays = null;
                     }
                 }
             });
@@ -247,7 +236,10 @@ function getUserBanStatus(user) {
     // Cross-check anti-tamper ban registry
     try {
         const banRegistry = readBanRegistry();
-        const reg = (user.id && banRegistry[user.id]) || (user.username && banRegistry[user.username.toLowerCase()]);
+        const emailKey = (user.rawEmail || user.email || '').toLowerCase();
+        const reg = (user.id && banRegistry[user.id]) ||
+                    (user.username && banRegistry[user.username.toLowerCase()]) ||
+                    (emailKey && banRegistry[emailKey]);
         if (reg && reg.banType && reg.banType !== 'none') {
             let isStillActive = true;
             if (reg.banType === 'temporary' && reg.banExpiresAt) {
@@ -260,15 +252,7 @@ function getUserBanStatus(user) {
                 user.banReason = reg.banReason || user.banReason;
                 user.banExpiresAt = reg.banExpiresAt || user.banExpiresAt;
                 user.banDurationDays = reg.banDurationDays || user.banDurationDays;
-            } else {
-                user.banType = 'none';
-                user.banReason = '';
-                user.banExpiresAt = null;
             }
-        } else if (!reg) {
-            user.banType = 'none';
-            user.banReason = '';
-            user.banExpiresAt = null;
         }
     } catch(e) {}
 
@@ -291,7 +275,7 @@ function getUserBanStatus(user) {
         if (user.banExpiresAt && new Date(user.banExpiresAt).getTime() > Date.now()) {
             let durText = user.banDurationDays ? `${user.banDurationDays} Hari` : '';
             if (user.banDurationDays === 1) durText = '1Hari 24Jam';
-            else if (user.banDurationDays === 5) durText = '5Hari';
+            if (user.banDurationDays === 5) durText = '5Hari';
             else if (user.banDurationDays === 7) durText = '7Hari';
             else if (user.banDurationDays === 10) durText = '10Hari';
             else if (user.banDurationDays === 20) durText = '20Hari';
@@ -308,6 +292,7 @@ function getUserBanStatus(user) {
             else if (user.banDurationDays === 18250) durText = '50Tahun 18250Hari';
             else if (user.banDurationDays === 32850) durText = '90Tahun 32850Hari';
             else if (user.banDurationDays === 36500) durText = '100Tahun 36500Hari';
+
 
             if (!durText && user.banExpiresAt) {
                 const diffMs = new Date(user.banExpiresAt).getTime() - Date.now();
@@ -326,7 +311,6 @@ function getUserBanStatus(user) {
             };
         } else {
             // Ban expired
-            user.banType = 'none';
             return { isBanned: false, isWarning: false, banType: 'none', banReason: '', banExpiresAt: null, banDurationText: '' };
         }
     }
@@ -413,8 +397,8 @@ module.exports = async (req, res) => {
             const targetEmail = String(body.email || '').trim().toLowerCase();
             const targetIp = String(body.ip || '').trim().toLowerCase();
 
-            const banType = String(body.banType || 'none').toLowerCase();
-            const durationDays = Number(body.durationDays || 0);
+            const banType = String(body.banType || 'none').toLowerCase(); // 'none', 'permanent', 'temporary', 'warning'
+            const durationDays = Number(body.durationDays || 0); // e.g. 365, 900, custom
             const banReason = String(body.banReason || '').trim();
 
             let userIndex = -1;
@@ -459,20 +443,23 @@ module.exports = async (req, res) => {
                 expires.setDate(expires.getDate() + durationDays);
                 user.banExpiresAt = expires.toISOString();
                 user.banDurationDays = durationDays;
-            } else if (banType !== 'temporary') {
+            } else {
                 user.banExpiresAt = null;
                 user.banDurationDays = null;
             }
 
             // Update Ban Registry for Anti-Tamper Protection
             const banRegistry = readBanRegistry();
+            const userEmail = (user.rawEmail || user.email || '').toLowerCase();
             if (banType === 'none') {
                 delete banRegistry[user.id];
                 if (user.username) delete banRegistry[user.username.toLowerCase()];
+                if (userEmail) delete banRegistry[userEmail];
             } else {
                 const regObj = {
                     userId: user.id,
                     username: user.username,
+                    email: userEmail,
                     banType: user.banType,
                     banReason: user.banReason,
                     banExpiresAt: user.banExpiresAt,
@@ -481,19 +468,18 @@ module.exports = async (req, res) => {
                 };
                 banRegistry[user.id] = regObj;
                 if (user.username) banRegistry[user.username.toLowerCase()] = regObj;
+                if (userEmail) banRegistry[userEmail] = regObj;
             }
             writeBanRegistry(banRegistry);
 
-            // Manage active sessions
-            Object.keys(db.sessions).forEach(tok => {
-                if (db.sessions[tok] && db.sessions[tok].userId === user.id) {
-                    if (banType === 'permanent' || banType === 'temporary') {
+            // If user is banned (permanent or temporary), tag their active sessions as banned
+            if (banType === 'permanent' || banType === 'temporary') {
+                Object.keys(db.sessions).forEach(tok => {
+                    if (db.sessions[tok] && db.sessions[tok].userId === user.id) {
                         db.sessions[tok].banned = true;
-                    } else if (banType === 'none') {
-                        db.sessions[tok].banned = false;
                     }
-                }
-            });
+                });
+            }
 
             db.users[userIndex] = user;
             writeData(db);
@@ -519,6 +505,7 @@ module.exports = async (req, res) => {
                 return res.status(404).json({ status: false, message: 'Pengguna tidak ditemukan' });
             }
 
+            // Remove sessions
             Object.keys(db.sessions).forEach(tok => {
                 if (db.sessions[tok].userId === userId) {
                     delete db.sessions[tok];
@@ -531,10 +518,10 @@ module.exports = async (req, res) => {
             return res.json({ status: true, message: 'Akun pengguna berhasil dihapus permanen' });
         }
 
-        // BAN / UNBAN IP ADDRESS
+        // BAN / UNBAN IP ADDRESS (DEDICATED IP BLACKLIST)
         if (action === 'admin_ban_ip') {
             const targetIp = String(body.targetIp || body.ip || '').trim();
-            const banType = String(body.banType || 'permanent').toLowerCase();
+            const banType = String(body.banType || 'permanent').toLowerCase(); // 'permanent', 'temporary', 'none'
             const durationDays = Number(body.durationDays || 0);
             const banReason = String(body.banReason || '').trim() || 'Alamat IP Anda telah diblokir secara khusus oleh administrator.';
 
@@ -618,6 +605,7 @@ module.exports = async (req, res) => {
     // 2. USER ACTIONS (GET ME, LOGIN, REGISTER, ETC)
     // ==========================================
 
+    // First check if current client IP is IP-Banned
     const ipBanCheck = getIpBanStatus(clientIp);
     if (ipBanCheck.isIpBanned) {
         return res.json({
@@ -644,6 +632,26 @@ module.exports = async (req, res) => {
         const targetEmail = String(req.query.email || body.email || '').trim().toLowerCase();
         const targetUserId = String(req.query.userId || body.userId || '').trim();
 
+        // Also check IP ban first
+        const ipBanCheck = getIpBanStatus(clientIp);
+        if (ipBanCheck.isIpBanned) {
+            return res.json({
+                status: true,
+                banned: true,
+                ipBanned: true,
+                ban: {
+                    isBanned: true,
+                    isIpBanned: true,
+                    ip: clientIp,
+                    banType: ipBanCheck.banType,
+                    banReason: ipBanCheck.banReason,
+                    banExpiresAt: ipBanCheck.banExpiresAt,
+                    banDurationDays: ipBanCheck.banDurationDays,
+                    banDurationText: ipBanCheck.banDurationText
+                }
+            });
+        }
+
         const user = db.users.find(u => {
             if (targetUserId && (u.id === targetUserId || u.id.toLowerCase() === targetUserId.toLowerCase())) return true;
             if (targetUsername && u.username && u.username.toLowerCase() === targetUsername) return true;
@@ -651,9 +659,33 @@ module.exports = async (req, res) => {
             return false;
         });
 
+        // Direct check against ban registry
+        try {
+            const banRegistry = readBanRegistry();
+            const reg = (targetUserId && banRegistry[targetUserId]) ||
+                        (targetUsername && banRegistry[targetUsername]) ||
+                        (targetEmail && banRegistry[targetEmail]);
+            if (reg && reg.banType && reg.banType !== 'none') {
+                let isStillActive = true;
+                if (reg.banType === 'temporary' && reg.banExpiresAt && new Date(reg.banExpiresAt).getTime() <= Date.now()) {
+                    isStillActive = false;
+                }
+                if (isStillActive) {
+                    const regBanStatus = getUserBanStatus(reg);
+                    return res.json({
+                        status: true,
+                        banned: true,
+                        unbanned: false,
+                        ban: regBanStatus,
+                        user: user ? { id: user.id, username: user.username } : { id: reg.userId || targetUserId, username: reg.username || targetUsername }
+                    });
+                }
+            }
+        } catch(e) {}
+
         if (!user) {
-            // FIX: kembalikan banned: false jika user memang tidak ditemukan agar tidak nyangkut sebagai banned
-            return res.json({ status: true, banned: false, unbanned: true, message: 'Akun aktif / tidak terdaftar' });
+            // Cannot reliably determine user: do NOT return banned: false (prevents auto-unban on network or query mismatch)
+            return res.json({ status: false, banned: true, unbanned: false, message: 'Identitas akun tidak ditemukan' });
         }
 
         const banStatus = getUserBanStatus(user);
@@ -669,56 +701,134 @@ module.exports = async (req, res) => {
     // GET /api/user-auth?action=me
     if (req.method === 'GET' || action === 'me') {
         const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.query.token;
-        if (!token) {
-            return res.json({ status: true, authenticated: false, user: null });
+        const fallbackUserId = String(req.headers['x-user-id'] || req.query.userId || '').trim();
+        const fallbackUsername = String(req.headers['x-user-name'] || req.query.username || '').trim().toLowerCase();
+        const fallbackEmail = String(req.headers['x-user-email'] || req.query.email || '').trim().toLowerCase();
+
+        let targetUserId = getUserIdFromToken(token, db);
+        let user = null;
+
+        if (targetUserId) {
+            user = db.users.find(u => u.id === targetUserId);
         }
 
-        const targetUserId = getUserIdFromToken(token, db);
-        if (!targetUserId) {
-            return res.json({ status: true, authenticated: false, user: null });
+        // If user not resolved via token, check fallback claimed user
+        if (!user && (fallbackUserId || fallbackUsername || fallbackEmail)) {
+            user = db.users.find(u => {
+                if (fallbackUserId && (u.id === fallbackUserId || u.id.toLowerCase() === fallbackUserId.toLowerCase())) return true;
+                if (fallbackUsername && u.username && u.username.toLowerCase() === fallbackUsername) return true;
+                if (fallbackEmail && ((u.rawEmail && u.rawEmail.toLowerCase() === fallbackEmail) || (u.email && u.email.toLowerCase() === fallbackEmail))) return true;
+                return false;
+            });
         }
 
-        const user = db.users.find(u => u.id === targetUserId);
-        if (!user) {
-            if (db.sessions && db.sessions[token]) {
-                delete db.sessions[token];
-                writeData(db);
+        // If a user was identified (either by token or claimed identity)
+        if (user) {
+            const banStatus = getUserBanStatus(user);
+            if (banStatus.isBanned) {
+                return res.json({
+                    status: true,
+                    authenticated: false,
+                    banned: true,
+                    ban: banStatus,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        email: user.rawEmail || user.email,
+                        rawEmail: user.rawEmail || user.email,
+                        avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`,
+                        createdAt: user.createdAt
+                    },
+                    message: banStatus.banReason || 'Akun Anda sedang diblokir oleh administrator.'
+                });
             }
-            return res.json({ status: true, authenticated: false, user: null });
+
+            // User is NOT banned:
+            if (targetUserId) {
+                return res.json({
+                    status: true,
+                    authenticated: true,
+                    banned: false,
+                    ban: banStatus,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        email: user.rawEmail || user.email,
+                        rawEmail: user.rawEmail || user.email,
+                        avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`,
+                        createdAt: user.createdAt
+                    }
+                });
+            } else {
+                return res.json({
+                    status: true,
+                    authenticated: false,
+                    banned: false,
+                    user: null
+                });
+            }
         }
 
-        const banStatus = getUserBanStatus(user);
-
-        return res.json({
-            status: true,
-            authenticated: true,
-            banned: banStatus.isBanned,
-            ban: banStatus,
-            user: {
-                id: user.id,
-                username: user.username,
-                email: user.rawEmail || user.email,
-                rawEmail: user.rawEmail || user.email,
-                avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`,
-                createdAt: user.createdAt
+        // Also check if ban registry directly has active ban for fallback claimed identifiers
+        try {
+            const banRegistry = readBanRegistry();
+            const reg = (fallbackUserId && banRegistry[fallbackUserId]) ||
+                        (fallbackUsername && banRegistry[fallbackUsername]) ||
+                        (fallbackEmail && banRegistry[fallbackEmail]);
+            if (reg && reg.banType && reg.banType !== 'none') {
+                let isStillActive = true;
+                if (reg.banType === 'temporary' && reg.banExpiresAt && new Date(reg.banExpiresAt).getTime() <= Date.now()) {
+                    isStillActive = false;
+                }
+                if (isStillActive) {
+                    const regBanStatus = getUserBanStatus(reg);
+                    return res.json({
+                        status: true,
+                        authenticated: false,
+                        banned: true,
+                        ban: regBanStatus,
+                        user: {
+                            id: reg.userId || fallbackUserId,
+                            username: reg.username || fallbackUsername,
+                            email: fallbackEmail
+                        },
+                        message: reg.banReason || 'Akun Anda sedang diblokir oleh administrator.'
+                    });
+                }
             }
-        });
+        } catch(e) {}
+
+        return res.json({ status: true, authenticated: false, banned: false, user: null });
     }
 
-    // REGISTER, LOGIN, UPDATE PROFILE, UPDATE PASSWORD, LOGOUT (KODE ASLI TETAP AMAN)
+    // POST /api/user-auth?action=register
     if (action === 'register') {
         const username = String(body.username || '').trim();
         const email = String(body.email || '').trim().toLowerCase();
         const password = String(body.password || '').trim();
 
-        if (!username || username.length < 3) return res.status(400).json({ status: false, message: 'Username minimal 3 karakter' });
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ status: false, message: 'Format email tidak valid' });
-        if (!password || password.length < 6) return res.status(400).json({ status: false, message: 'Password minimal 6 karakter' });
+        if (!username) {
+            return res.status(400).json({ status: false, message: 'Username wajib diisi' });
+        }
+        if (username.length < 3) {
+            return res.status(400).json({ status: false, message: 'Username minimal 3 karakter' });
+        }
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ status: false, message: 'Format email tidak valid' });
+        }
+        if (!password || password.length < 6) {
+            return res.status(400).json({ status: false, message: 'Password minimal 6 karakter/huruf' });
+        }
 
+        // Check if username or email already exists
         const existsUser = db.users.find(u => u.username.toLowerCase() === username.toLowerCase());
-        if (existsUser) return res.status(400).json({ status: false, message: 'Username sudah digunakan' });
+        if (existsUser) {
+            return res.status(400).json({ status: false, message: 'Username sudah digunakan, silakan pilih yang lain' });
+        }
         const existsEmail = db.users.find(u => (u.rawEmail && u.rawEmail.toLowerCase() === email.toLowerCase()) || u.email.toLowerCase() === email.toLowerCase());
-        if (existsEmail) return res.status(400).json({ status: false, message: 'Email sudah terdaftar' });
+        if (existsEmail) {
+            return res.status(400).json({ status: false, message: 'Email sudah terdaftar, silakan login' });
+        }
 
         const { hash, salt } = hashPassword(password);
         const nowIso = new Date().toISOString();
@@ -740,52 +850,234 @@ module.exports = async (req, res) => {
             banType: 'none',
             banReason: '',
             banExpiresAt: null,
-            loginLogs: [{ ip: maskedClientIp, rawIp: clientIp, timestamp: nowIso, userAgent: req.headers['user-agent'] || '' }]
+            loginLogs: [
+                {
+                    ip: maskedClientIp,
+                    rawIp: clientIp,
+                    timestamp: nowIso,
+                    userAgent: req.headers['user-agent'] || ''
+                }
+            ]
         };
 
         db.users.push(newUser);
-        const token = createSignedUserToken(newUser.id, newUser.username);
+
+        // Auto login after register
+        const token = createSignedUserToken(newUser);
         db.sessions = db.sessions || {};
-        db.sessions[token] = { userId: newUser.id, createdAt: Date.now(), rememberMe: true };
+        db.sessions[token] = {
+            userId: newUser.id,
+            createdAt: Date.now(),
+            rememberMe: true
+        };
+
         writeData(db);
 
-        return res.json({ status: true, message: 'Pendaftaran berhasil!', token, ban: getUserBanStatus(newUser), user: { id: newUser.id, username: newUser.username, email: newUser.email, avatar: newUser.avatar, createdAt: newUser.createdAt } });
+        return res.json({
+            status: true,
+            message: 'Pendaftaran berhasil!',
+            token: token,
+            ban: getUserBanStatus(newUser),
+            user: {
+                id: newUser.id,
+                username: newUser.username,
+                email: newUser.email,
+                avatar: newUser.avatar,
+                createdAt: newUser.createdAt
+            }
+        });
     }
 
+    // POST /api/user-auth?action=login
     if (action === 'login') {
         const username = String(body.username || '').trim();
         const email = String(body.email || '').trim().toLowerCase();
         const password = String(body.password || '').trim();
+        const rememberMe = body.rememberMe !== false;
 
+        if (!username && !email) {
+            return res.status(400).json({ status: false, message: 'Username atau Email wajib diisi' });
+        }
+        if (!password || password.length < 6) {
+            return res.status(400).json({ status: false, message: 'Password minimal 6 karakter/huruf' });
+        }
+
+        // Find user by username or email
         const user = db.users.find(u => {
             if (username && u.username.toLowerCase() === username.toLowerCase()) return true;
-            if (email && ((u.rawEmail && u.rawEmail.toLowerCase() === email.toLowerCase()) || u.email.toLowerCase() === email.toLowerCase())) return true;
+            if (email && ((u.rawEmail && u.rawEmail.toLowerCase() === email.toLowerCase()) || u.email.toLowerCase() === email.toLowerCase() || u.email.toLowerCase() === maskEmail(email).toLowerCase())) return true;
             return false;
         });
 
-        if (!user || !verifyPassword(password, user.passwordHash, user.passwordSalt)) {
-            return res.status(401).json({ status: false, message: 'Username/Email atau Password salah' });
+        if (!user) {
+            return res.status(401).json({ status: false, message: 'Akun tidak ditemukan. Silakan periksa kembali username/email atau daftar baru.' });
         }
 
+        const isMatch = verifyPassword(password, user.passwordHash, user.passwordSalt);
+        if (!isMatch) {
+            return res.status(401).json({ status: false, message: 'Password salah. Silakan coba lagi.' });
+        }
+
+        // Check if user is BANNED
         const banStatus = getUserBanStatus(user);
         if (banStatus.isBanned) {
-            return res.json({ status: false, banned: true, ban: banStatus, message: banStatus.banReason || 'Akun Anda diblokir' });
+            return res.json({
+                status: false,
+                banned: true,
+                ban: banStatus,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    rawEmail: user.rawEmail
+                },
+                message: banStatus.banReason || 'Akun Anda sedang diblokir oleh administrator.'
+            });
         }
 
+        // Record Login Log & IP
         const nowIso = new Date().toISOString();
         const maskedClientIp = maskIp(clientIp);
         user.lastLoginAt = nowIso;
         user.lastIp = maskedClientIp;
         user.rawLastIp = clientIp;
+        user.maskedPassword = '••••••••';
+        user.loginLogs = user.loginLogs || [];
+        user.loginLogs.unshift({
+            ip: maskedClientIp,
+            rawIp: clientIp,
+            timestamp: nowIso,
+            userAgent: req.headers['user-agent'] || ''
+        });
+        if (user.loginLogs.length > 20) {
+            user.loginLogs = user.loginLogs.slice(0, 20);
+        }
 
         const token = createSignedUserToken(user.id, user.username);
         db.sessions = db.sessions || {};
-        db.sessions[token] = { userId: user.id, createdAt: Date.now(), rememberMe: body.rememberMe !== false };
+        db.sessions[token] = {
+            userId: user.id,
+            createdAt: Date.now(),
+            rememberMe: rememberMe
+        };
+
         writeData(db);
 
-        return res.json({ status: true, message: 'Login berhasil!', token, ban: banStatus, user: { id: user.id, username: user.username, email: user.email, avatar: user.avatar, createdAt: user.createdAt } });
+        return res.json({
+            status: true,
+            message: 'Login berhasil!',
+            token: token,
+            ban: banStatus,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`,
+                createdAt: user.createdAt
+            }
+        });
     }
 
+    // POST /api/user-auth?action=update_profile
+    if (action === 'update_profile') {
+        const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.body?.token;
+        const targetUserId = getUserIdFromToken(token, db);
+        if (!targetUserId) {
+            return res.status(401).json({ status: false, message: 'Sesi login tidak valid atau sudah berakhir' });
+        }
+        const userIndex = db.users.findIndex(u => u.id === targetUserId);
+        if (userIndex === -1) {
+            return res.status(404).json({ status: false, message: 'Pengguna tidak ditemukan' });
+        }
+
+        const user = db.users[userIndex];
+
+        // Update username if provided
+        if (body.username !== undefined) {
+            const newUsername = String(body.username).trim();
+            if (!newUsername || newUsername.length < 3) {
+                return res.status(400).json({ status: false, message: 'Username minimal 3 karakter' });
+            }
+            const exists = db.users.find(u => u.id !== user.id && u.username.toLowerCase() === newUsername.toLowerCase());
+            if (exists) {
+                return res.status(400).json({ status: false, message: 'Username sudah digunakan orang lain' });
+            }
+            user.username = newUsername;
+        }
+
+        // Update email if provided
+        if (body.email !== undefined) {
+            const newEmail = String(body.email).trim().toLowerCase();
+            if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+                return res.status(400).json({ status: false, message: 'Format email tidak valid' });
+            }
+            const exists = db.users.find(u => u.id !== user.id && u.email.toLowerCase() === newEmail.toLowerCase());
+            if (exists) {
+                return res.status(400).json({ status: false, message: 'Email sudah digunakan akun lain' });
+            }
+            user.email = newEmail;
+        }
+
+        // Update avatar (from device gallery) if provided
+        if (body.avatar !== undefined) {
+            user.avatar = body.avatar;
+        }
+
+        db.users[userIndex] = user;
+        writeData(db);
+
+        return res.json({
+            status: true,
+            message: 'Profil berhasil diperbarui!',
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`,
+                createdAt: user.createdAt
+            }
+        });
+    }
+
+    // POST /api/user-auth?action=update_password
+    if (action === 'update_password') {
+        const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.body?.token;
+        const targetUserId = getUserIdFromToken(token, db);
+        if (!targetUserId) {
+            return res.status(401).json({ status: false, message: 'Sesi login tidak valid' });
+        }
+        const user = db.users.find(u => u.id === targetUserId);
+        if (!user) {
+            return res.status(404).json({ status: false, message: 'Pengguna tidak ditemukan' });
+        }
+
+        const oldPassword = String(body.oldPassword || '').trim();
+        const newPassword = String(body.newPassword || '').trim();
+
+        if (oldPassword) {
+            const isMatch = verifyPassword(oldPassword, user.passwordHash, user.passwordSalt);
+            if (!isMatch) {
+                return res.status(400).json({ status: false, message: 'Password saat ini salah' });
+            }
+        }
+
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ status: false, message: 'Password baru minimal 6 karakter/huruf' });
+        }
+
+        const { hash, salt } = hashPassword(newPassword);
+        user.passwordHash = hash;
+        user.passwordSalt = salt;
+        user.maskedPassword = maskPassword(newPassword);
+        writeData(db);
+
+        return res.json({
+            status: true,
+            message: 'Password berhasil diubah!'
+        });
+    }
+
+    // POST /api/user-auth?action=logout
     if (action === 'logout') {
         const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.body?.token;
         if (token && db.sessions[token]) {
