@@ -7,11 +7,7 @@
       "config": {
         "includeFiles": [
           "public/**",
-          "api/**",
-          "data/**",
-          "data/.*",
-          "data/*.json",
-          ".*.json"
+          "api/**"
         ]
       }
     }
