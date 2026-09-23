@@ -59,27 +59,31 @@ function verifySessionToken(token) {
 function createSignedTempToken(username) {
     const payload = {
         u: username || 'admin',
-        t: '2fa_temp',
+        t: 'temp_2fa',
         iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + 600 // 10 minutes
+        exp: Math.floor(Date.now() / 1000) + 300 // 5 minutes
     };
     const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
     const signature = crypto.createHmac('sha256', JWT_SECRET).update(payloadStr).digest('base64url');
-    const tempToken = `tmp_${payloadStr}.${signature}`;
-    pending2FASessions.set(tempToken, {
+    const token = `tmp_${payloadStr}.${signature}`;
+    pending2FASessions.set(token, {
         username: username,
-        expiresAt: Date.now() + 600 * 1000
+        expiresAt: Date.now() + (5 * 60 * 1000)
     });
-    return tempToken;
+    return token;
 }
 
-function verifyTempToken(tempToken) {
-    if (!tempToken || typeof tempToken !== 'string') return null;
-    const clean = tempToken.trim();
-    if (pending2FASessions.has(clean)) {
-        const info = pending2FASessions.get(clean);
-        if (Date.now() < info.expiresAt) return info;
+function verifyTempToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    const clean = token.trim();
+
+    // Check memory first
+    const mem = pending2FASessions.get(clean);
+    if (mem && Date.now() <= mem.expiresAt) {
+        return mem;
     }
+
+    // Check signed token
     if (clean.startsWith('tmp_')) {
         const parts = clean.slice(4).split('.');
         if (parts.length === 2) {
@@ -88,7 +92,7 @@ function verifyTempToken(tempToken) {
                 const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(payloadStr).digest('base64url');
                 if (safeCompare(signature, expectedSig)) {
                     const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf8'));
-                    if (payload && payload.t === '2fa_temp' && Math.floor(Date.now() / 1000) < payload.exp) {
+                    if (payload && payload.t === 'temp_2fa' && payload.exp && Math.floor(Date.now() / 1000) < payload.exp) {
                         return { username: payload.u, expiresAt: payload.exp * 1000 };
                     }
                 }
@@ -98,17 +102,17 @@ function verifyTempToken(tempToken) {
     return null;
 }
 
-function generateBase32Secret(length = 20) {
-    const bytes = crypto.randomBytes(length);
+function generateRandomBase32Secret(length = 16) {
     let secret = '';
-    for (let i = 0; i < bytes.length; i++) {
-        secret += BASE32_ALPHABET[bytes[i] % 32];
+    const randomBytes = crypto.randomBytes(length);
+    for (let i = 0; i < length; i++) {
+        secret += BASE32_ALPHABET[randomBytes[i] % 32];
     }
     return secret;
 }
 
-function base32Decode(base32) {
-    const clean = String(base32).toUpperCase().replace(/=+$/, '').replace(/[^A-Z2-7]/g, '');
+function base32Decode(base32Str) {
+    let clean = (base32Str || '').toUpperCase().replace(/=+$/, '').replace(/\s+/g, '');
     let bits = '';
     for (let i = 0; i < clean.length; i++) {
         const val = BASE32_ALPHABET.indexOf(clean[i]);
@@ -117,45 +121,40 @@ function base32Decode(base32) {
     }
     const bytes = [];
     for (let i = 0; i + 8 <= bits.length; i += 8) {
-        bytes.push(parseInt(bits.substring(i, i + 8), 2));
+        bytes.push(parseInt(bits.substr(i, 8), 2));
     }
     return Buffer.from(bytes);
 }
 
-function generateTOTP(secretBase32, timeStep = 30, windowOffset = 0) {
+function generateTOTP(secret, timeStepOffset = 0) {
     try {
-        const key = base32Decode(secretBase32);
-        const epoch = Math.floor(Date.now() / 1000);
-        const counter = Math.floor(epoch / timeStep) + windowOffset;
+        const key = base32Decode(secret);
+        const timeStep = Math.floor(Date.now() / 1000 / 30) + timeStepOffset;
+        const timeBuffer = Buffer.alloc(8);
+        timeBuffer.writeBigInt64BE(BigInt(timeStep));
 
-        const buf = Buffer.alloc(8);
-        buf.writeBigUInt64BE(BigInt(counter));
-
-        const hmac = crypto.createHmac('sha1', key);
-        hmac.update(buf);
-        const digest = hmac.digest();
-
-        const offset = digest[digest.length - 1] & 0xf;
-        const binary = ((digest[offset] & 0x7f) << 24) |
-            ((digest[offset + 1] & 0xff) << 16) |
-            ((digest[offset + 2] & 0xff) << 8) |
-            (digest[offset + 3] & 0xff);
-
-        const otp = binary % 1000000;
-        return otp.toString().padStart(6, '0');
+        const hmac = crypto.createHmac('sha1', key).update(timeBuffer).digest();
+        const offset = hmac[hmac.length - 1] & 0x0f;
+        const codeInt = ((hmac[offset] & 0x7f) << 24) |
+                        ((hmac[offset + 1] & 0xff) << 16) |
+                        ((hmac[offset + 2] & 0xff) << 8) |
+                        (hmac[offset + 3] & 0xff);
+        const code = (codeInt % 1000000).toString().padStart(6, '0');
+        return code;
     } catch (e) {
         return null;
     }
 }
 
-function verifyTOTP(secretBase32, code, timeStep = 30, window = 2) {
-    if (!code || typeof code !== 'string') return false;
-    const cleanCode = code.trim().replace(/\s+/g, '');
-    if (cleanCode.length !== 6 || !/^\d{6}$/.test(cleanCode)) return false;
+function verifyTOTP(secret, inputCode) {
+    if (!secret || !inputCode) return false;
+    const cleanCode = String(inputCode).replace(/\s+/g, '').trim();
+    if (cleanCode.length !== 6) return false;
 
-    for (let i = -window; i <= window; i++) {
-        const generated = generateTOTP(secretBase32, timeStep, i);
-        if (generated && safeCompare(generated, cleanCode)) {
+    // Check current time step and adjacent +/- 1 window (30s drift tolerance)
+    for (let offset = -1; offset <= 1; offset++) {
+        const expected = generateTOTP(secret, offset);
+        if (expected && safeCompare(expected, cleanCode)) {
             return true;
         }
     }
@@ -163,7 +162,9 @@ function verifyTOTP(secretBase32, code, timeStep = 30, window = 2) {
 }
 
 function hashPassword(password, salt) {
-    return crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+    salt = salt || crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+    return { hash, salt };
 }
 
 function safeCompare(a, b) {
@@ -174,9 +175,9 @@ function safeCompare(a, b) {
     return crypto.timingSafeEqual(bufA, bufB);
 }
 
-function getStoredCredentials() {
-    // 1. Check runtime storage file first
-    const data = storage.readData(CRED_FILE, null);
+async function getStoredCredentialsAsync() {
+    // 1. Direct fetch from Neon PostgreSQL (with memory & disk backup)
+    const data = await storage.readDataAsync(CRED_FILE, null);
     if (data && data.username && data.hash && data.salt) {
         return {
             type: 'file',
@@ -206,14 +207,42 @@ function getStoredCredentials() {
     return null;
 }
 
-module.exports = function (req, res) {
+function getStoredCredentialsSync() {
+    const data = storage.readData(CRED_FILE, null);
+    if (data && data.username && data.hash && data.salt) {
+        return {
+            type: 'file',
+            username: data.username,
+            hash: data.hash,
+            salt: data.salt,
+            twoFactorEnabled: Boolean(data.twoFactorEnabled),
+            twoFactorSecret: data.twoFactorSecret || null,
+            twoFactorEnabledAt: data.twoFactorEnabledAt || null
+        };
+    }
+
+    const envUser = process.env.ADMIN_USERNAME;
+    const envPass = process.env.ADMIN_PASSWORD;
+    if (envUser && envPass) {
+        return {
+            type: 'env',
+            username: envUser.trim(),
+            password: envPass.trim(),
+            twoFactorEnabled: false,
+            twoFactorSecret: null
+        };
+    }
+    return null;
+}
+
+module.exports = async function (req, res) {
     res.setHeader('Content-Type', 'application/json');
 
     const method = req.method.toUpperCase();
 
     if (method === 'GET') {
         const token = req.headers['x-admin-token'] || req.query.token;
-        const creds = getStoredCredentials();
+        const creds = await getStoredCredentialsAsync();
         const isAuthenticated = Boolean(token && verifySessionToken(token));
 
         return res.json({
@@ -244,7 +273,7 @@ module.exports = function (req, res) {
             return res.json({ status: true, message: 'Berhasil logout' });
         }
 
-        const creds = getStoredCredentials();
+        const creds = await getStoredCredentialsAsync();
 
         // If no credentials configured yet, allow initial first-time setup
         if (!creds) {
@@ -260,7 +289,7 @@ module.exports = function (req, res) {
                 const hash = hashPassword(password, salt);
 
                 try {
-                    storage.writeData(CRED_FILE, {
+                    await storage.writeDataAsync(CRED_FILE, {
                         username: username,
                         hash: hash,
                         salt: salt,
@@ -298,63 +327,72 @@ module.exports = function (req, res) {
             const sessionInfo = verifyTempToken(tempToken);
 
             if (!tempToken || !sessionInfo) {
-                return res.status(401).json({ status: false, message: 'Sesi verifikasi 2FA kedaluwarsa atau tidak valid. Silakan login ulang.' });
+                return res.status(401).json({
+                    status: false,
+                    message: 'Sesi verifikasi 2FA kedaluwarsa atau tidak valid. Silakan login ulang.'
+                });
+            }
+
+            if (!otpCode || String(otpCode).trim().length !== 6) {
+                return res.status(400).json({
+                    status: false,
+                    message: 'Kode OTP 6 digit wajib diisi'
+                });
             }
 
             if (!creds.twoFactorSecret) {
-                return res.status(500).json({ status: false, message: 'Konfigurasi 2FA pada server tidak ditemukan.' });
+                return res.status(500).json({
+                    status: false,
+                    message: 'Secret 2FA tidak ditemukan pada konfigurasi sistem.'
+                });
             }
 
-            const isValid = verifyTOTP(creds.twoFactorSecret, String(otpCode || ''));
+            const isValid = verifyTOTP(creds.twoFactorSecret, otpCode);
             if (!isValid) {
-                return res.status(400).json({ status: false, message: 'Kode OTP 6 digit salah atau telah kedaluwarsa.' });
+                return res.status(401).json({
+                    status: false,
+                    message: 'Kode 2FA salah atau kedaluwarsa. Periksa aplikasi Authenticator Anda.'
+                });
             }
 
-            // Clean up temp token & generate real session token
+            // Success: Clean up temp token & issue permanent session token
             pending2FASessions.delete(tempToken);
-            const fullSessionToken = createSignedSessionToken(sessionInfo.username || creds.username);
+            const sessionToken = createSignedSessionToken(creds.username);
 
             return res.json({
                 status: true,
                 success: true,
-                token: fullSessionToken,
-                message: 'Verifikasi 2FA berhasil. Login sukses!'
+                token: sessionToken,
+                message: 'Verifikasi 2FA berhasil! Selamat datang kembali.'
             });
         }
 
         // ==========================================
-        // ACTION: 2FA SETUP (Generate Secret & QR)
+        // ACTION: 2FA SETUP INIT (Generate secret & URI)
         // ==========================================
-        if (action === '2fa_setup') {
+        if (action === '2fa_init') {
             if (!token || !verifySessionToken(token)) {
                 return res.status(401).json({ status: false, message: 'Akses ditolak: Membutuhkan token admin aktif' });
             }
 
-            const secret = generateBase32Secret(20);
-            const issuer = 'MusifyStar';
+            const secret = generateRandomBase32Secret(16);
+            const issuer = 'MusifyStar Admin';
             const account = creds.username || 'admin';
-            const otpAuthUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(account)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&digits=6&period=30`;
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(otpAuthUri)}`;
+            const otpauthUrl = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(account)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 
-            pending2FASetups.set(token, { secret, createdAt: Date.now() });
-
-            // Format secret with spacing (e.g. ABCD EFGH IJKL MNOP QRST)
-            const formattedSecret = secret.match(/.{1,4}/g).join(' ');
+            pending2FASetups.set(token, { secret: secret, createdAt: Date.now() });
 
             return res.json({
                 status: true,
-                success: true,
                 secret: secret,
-                formattedSecret: formattedSecret,
-                otpAuthUri: otpAuthUri,
-                qrUrl: qrUrl,
-                issuer: issuer,
-                account: account
+                otpauthUrl: otpauthUrl,
+                username: account,
+                issuer: issuer
             });
         }
 
         // ==========================================
-        // ACTION: 2FA ENABLE (Verify initial OTP & save)
+        // ACTION: 2FA ENABLE (Verify OTP & Save Secret)
         // ==========================================
         if (action === '2fa_enable') {
             if (!token || !verifySessionToken(token)) {
@@ -374,7 +412,7 @@ module.exports = function (req, res) {
             }
 
             try {
-                let currentFileCreds = storage.readData(CRED_FILE, null);
+                let currentFileCreds = await storage.readDataAsync(CRED_FILE, null);
                 if (!currentFileCreds) {
                     if (creds.type === 'env') {
                         const salt = crypto.randomBytes(16).toString('hex');
@@ -389,7 +427,7 @@ module.exports = function (req, res) {
                 currentFileCreds.twoFactorSecret = secret;
                 currentFileCreds.twoFactorEnabledAt = new Date().toISOString();
 
-                storage.writeData(CRED_FILE, currentFileCreds);
+                await storage.writeDataAsync(CRED_FILE, currentFileCreds);
                 pending2FASetups.delete(token);
 
                 return res.json({
@@ -425,13 +463,13 @@ module.exports = function (req, res) {
             }
 
             try {
-                let currentFileCreds = storage.readData(CRED_FILE, {});
+                let currentFileCreds = await storage.readDataAsync(CRED_FILE, {});
 
                 currentFileCreds.twoFactorEnabled = false;
                 currentFileCreds.twoFactorSecret = null;
                 currentFileCreds.twoFactorDisabledAt = new Date().toISOString();
 
-                storage.writeData(CRED_FILE, currentFileCreds);
+                await storage.writeDataAsync(CRED_FILE, currentFileCreds);
 
                 return res.json({
                     status: true,
@@ -478,14 +516,14 @@ module.exports = function (req, res) {
             const targetUsername = creds.username || username || 'musikstar';
 
             try {
-                let currentFileCreds = storage.readData(CRED_FILE, {});
+                let currentFileCreds = await storage.readDataAsync(CRED_FILE, {});
 
                 currentFileCreds.username = targetUsername;
                 currentFileCreds.hash = newHash;
                 currentFileCreds.salt = newSalt;
                 currentFileCreds.updatedAt = new Date().toISOString();
 
-                storage.writeData(CRED_FILE, currentFileCreds);
+                await storage.writeDataAsync(CRED_FILE, currentFileCreds);
 
                 return res.json({
                     status: true,
@@ -554,3 +592,5 @@ module.exports.isValidToken = function (token) {
 module.exports.verifyToken = function (token) {
     return verifySessionToken(token);
 };
+module.exports.getStoredCredentials = getStoredCredentialsSync;
+module.exports.getStoredCredentialsAsync = getStoredCredentialsAsync;

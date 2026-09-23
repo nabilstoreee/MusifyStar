@@ -12,7 +12,20 @@ const DEFAULT_CONFIG = {
     updatedAt: new Date().toISOString()
 };
 
-function getStoredVersion() {
+async function getStoredVersionAsync() {
+    const parsed = await storage.readDataAsync(VERSION_FILE, DEFAULT_CONFIG);
+    if (parsed && parsed.version) {
+        return {
+            version: String(parsed.version).trim(),
+            releaseName: parsed.releaseName || 'MusifyStar Official',
+            description: parsed.description || 'Nikmati Streaming Musik Dengan Lirik',
+            updatedAt: parsed.updatedAt || new Date().toISOString()
+        };
+    }
+    return DEFAULT_CONFIG;
+}
+
+function getStoredVersionSync() {
     const parsed = storage.readData(VERSION_FILE, DEFAULT_CONFIG);
     if (parsed && parsed.version) {
         return {
@@ -25,15 +38,15 @@ function getStoredVersion() {
     return DEFAULT_CONFIG;
 }
 
-function saveVersion(config) {
-    return storage.writeData(VERSION_FILE, config);
+async function saveVersionAsync(config) {
+    return await storage.writeDataAsync(VERSION_FILE, config);
 }
 
 module.exports = async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
 
     if (req.method === 'GET') {
-        const config = getStoredVersion();
+        const config = await getStoredVersionAsync();
         return res.json({
             status: true,
             version: config.version,
@@ -52,7 +65,7 @@ module.exports = async (req, res) => {
             });
         }
 
-        const { version, releaseName, description } = req.body;
+        const { version, releaseName, description } = req.body || {};
         if (!version || typeof version !== 'string' || !version.trim()) {
             return res.status(400).json({
                 status: false,
@@ -60,32 +73,33 @@ module.exports = async (req, res) => {
             });
         }
 
-        let cleanVersion = version.trim();
-        if (!cleanVersion.startsWith('v') && !cleanVersion.startsWith('V') && /^[0-9]/.test(cleanVersion)) {
-            cleanVersion = 'v' + cleanVersion;
-        }
-
         const newConfig = {
-            version: cleanVersion,
+            version: version.trim(),
             releaseName: (releaseName && typeof releaseName === 'string') ? releaseName.trim() : 'MusifyStar Official',
             description: (description && typeof description === 'string') ? description.trim() : 'Nikmati Streaming Musik Dengan Lirik',
             updatedAt: new Date().toISOString()
         };
 
-        const saved = saveVersion(newConfig);
-        if (saved) {
-            return res.json({
-                status: true,
-                message: `Versi aplikasi berhasil diperbarui menjadi ${cleanVersion}`,
-                config: newConfig
-            });
-        } else {
+        const success = await saveVersionAsync(newConfig);
+        if (!success) {
             return res.status(500).json({
                 status: false,
-                message: 'Gagal menyimpan versi ke sistem penyimpanan'
+                message: 'Gagal memperbarui konfigurasi versi'
             });
         }
+
+        return res.json({
+            status: true,
+            message: 'Informasi versi aplikasi berhasil diperbarui!',
+            version: newConfig.version,
+            releaseName: newConfig.releaseName,
+            description: newConfig.description,
+            updatedAt: newConfig.updatedAt
+        });
     }
 
-    return res.status(405).json({ status: false, message: 'Method not allowed' });
+    return res.status(405).json({ status: false, message: 'Method Not Allowed' });
 };
+
+module.exports.getStoredVersion = getStoredVersionSync;
+module.exports.getStoredVersionAsync = getStoredVersionAsync;

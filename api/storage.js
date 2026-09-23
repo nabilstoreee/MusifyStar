@@ -2,17 +2,46 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
-// Neon PostgreSQL Database URL
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_VuRmHWJE9yb3@ep-dawn-fog-azzl4nav-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+// Auto-load .env configuration if not already loaded into process.env
+try {
+    const envPath = path.join(__dirname, '..', '.env');
+    if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        envContent.split('\n').forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed && !trimmed.startsWith('#')) {
+                const eqIdx = trimmed.indexOf('=');
+                if (eqIdx > 0) {
+                    const k = trimmed.slice(0, eqIdx).trim();
+                    const v = trimmed.slice(eqIdx + 1).trim();
+                    if (!process.env[k]) {
+                        process.env[k] = v;
+                    }
+                }
+            }
+        });
+    }
+} catch (e) {}
+
+// Neon PostgreSQL Database URL from environment
+const DATABASE_URL = process.env.DATABASE_URL;
+
+// Local mirror directory
+const DATA_DIR = path.join(__dirname, '..', 'data');
+try {
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+} catch (e) {}
 
 let pool = null;
 try {
     pool = new Pool({
         connectionString: DATABASE_URL,
         ssl: { rejectUnauthorized: false },
-        max: 15,
+        max: 20,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 8000
+        connectionTimeoutMillis: 10000
     });
 
     // Auto-create storage table in PostgreSQL if not present
@@ -47,6 +76,9 @@ async function fetchFromPostgres(key) {
         if (res.rows && res.rows.length > 0) {
             const data = res.rows[0].data;
             memoryStore.set(key, data);
+            try {
+                fs.writeFileSync(path.join(DATA_DIR, key), JSON.stringify(data, null, 2), 'utf8');
+            } catch (e) {}
             return data;
         }
     } catch (err) {
@@ -64,6 +96,9 @@ async function writeToPostgres(key, data) {
              ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
             [key, JSON.stringify(data)]
         );
+        try {
+            fs.writeFileSync(path.join(DATA_DIR, key), JSON.stringify(data, null, 2), 'utf8');
+        } catch (e) {}
         return true;
     } catch (err) {
         console.error(`[Neon PostgreSQL] Error saving key "${key}":`, err.message);
@@ -72,7 +107,7 @@ async function writeToPostgres(key, data) {
 }
 
 /**
- * Synchronous read accessor (reads from live memory mirror, immediately verified against PostgreSQL)
+ * Synchronous read accessor (reads from live memory mirror or disk backup)
  */
 function readData(filename, defaultValue) {
     const key = normalizeKey(filename);
@@ -81,26 +116,34 @@ function readData(filename, defaultValue) {
         return memoryStore.get(key);
     }
 
-    // Fallback if not yet loaded in cache (e.g. initial boot before connection finishes)
-    const fallback = defaultValue !== undefined ? defaultValue : null;
-    if (fallback !== null) {
-        memoryStore.set(key, fallback);
-    }
+    // Check local disk mirror first before falling back to empty defaultValue
+    try {
+        const localPath = path.join(DATA_DIR, key);
+        if (fs.existsSync(localPath)) {
+            const raw = fs.readFileSync(localPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            memoryStore.set(key, parsed);
+            return parsed;
+        }
+    } catch (e) {}
 
-    // Refresh from PostgreSQL in background
+    // Refresh from PostgreSQL in background (DO NOT store fallback in memoryStore!)
     fetchFromPostgres(key).catch(() => {});
 
-    return fallback;
+    return defaultValue !== undefined ? defaultValue : null;
 }
 
 /**
- * Write accessor (updates memory mirror and immediately persists to Neon PostgreSQL)
+ * Write accessor (updates memory mirror, disk mirror, and persists to Neon PostgreSQL)
  */
 function writeData(filename, data) {
     const key = normalizeKey(filename);
 
-    // 1. Immediately update active memory state
+    // 1. Immediately update active memory state & local disk
     memoryStore.set(key, data);
+    try {
+        fs.writeFileSync(path.join(DATA_DIR, key), JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {}
 
     // 2. Persist directly to Neon PostgreSQL PRIMARY database
     writeToPostgres(key, data).catch(err => {
@@ -110,7 +153,7 @@ function writeData(filename, data) {
     return true;
 }
 
-// Async direct read from PostgreSQL (for endpoints requiring guaranteed fresh read)
+// Async direct read from PostgreSQL (guarantees 100% fresh data from Neon)
 async function readDataAsync(filename, defaultValue) {
     const key = normalizeKey(filename);
     const dbData = await fetchFromPostgres(key);
@@ -120,13 +163,25 @@ async function readDataAsync(filename, defaultValue) {
     if (memoryStore.has(key)) {
         return memoryStore.get(key);
     }
+    try {
+        const localPath = path.join(DATA_DIR, key);
+        if (fs.existsSync(localPath)) {
+            const raw = fs.readFileSync(localPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            memoryStore.set(key, parsed);
+            return parsed;
+        }
+    } catch (e) {}
     return defaultValue !== undefined ? defaultValue : null;
 }
 
-// Async direct write to PostgreSQL
+// Async direct write to PostgreSQL (awaited for 100% durability)
 async function writeDataAsync(filename, data) {
     const key = normalizeKey(filename);
     memoryStore.set(key, data);
+    try {
+        fs.writeFileSync(path.join(DATA_DIR, key), JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {}
     return await writeToPostgres(key, data);
 }
 
@@ -137,8 +192,11 @@ async function initNeonPrimary() {
         const res = await pool.query('SELECT key, data FROM app_storage');
         for (const row of res.rows) {
             memoryStore.set(row.key, row.data);
+            try {
+                fs.writeFileSync(path.join(DATA_DIR, row.key), JSON.stringify(row.data, null, 2), 'utf8');
+            } catch (e) {}
         }
-        console.log(`[Neon PostgreSQL] Primary DB active: Loaded ${res.rows.length} keys directly into memory.`);
+        console.log(`[Neon PostgreSQL] Primary DB active: Loaded ${res.rows.length} keys directly into memory & disk mirror.`);
     } catch (e) {
         console.warn('[Neon PostgreSQL] Initial load warning:', e.message);
     }

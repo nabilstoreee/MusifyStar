@@ -5,16 +5,16 @@ const storage = require('./storage.js');
 
 const FEEDBACK_FILE = '.user_feedback.json';
 
-function readFeedbacks() {
-    const data = storage.readData(FEEDBACK_FILE, []);
+async function readFeedbacksAsync() {
+    const data = await storage.readDataAsync(FEEDBACK_FILE, []);
     return Array.isArray(data) ? data : [];
 }
 
-function writeFeedbacks(feedbacks) {
-    return storage.writeData(FEEDBACK_FILE, feedbacks);
+async function writeFeedbacksAsync(feedbacks) {
+    return await storage.writeDataAsync(FEEDBACK_FILE, feedbacks);
 }
 
-module.exports = function (req, res) {
+module.exports = async function (req, res) {
     res.setHeader('Content-Type', 'application/json');
     const method = req.method.toUpperCase();
 
@@ -35,7 +35,7 @@ module.exports = function (req, res) {
             return res.status(400).json({ status: false, message: 'Pesan maksimal 2000 karakter' });
         }
 
-        const feedbacks = readFeedbacks();
+        const feedbacks = await readFeedbacksAsync();
         const userLogged = typeof body.userLogged === 'boolean' ? body.userLogged : false;
         const username = typeof body.username === 'string' ? body.username.trim() : '';
         const email = typeof body.email === 'string' ? body.email.trim() : '';
@@ -60,7 +60,7 @@ module.exports = function (req, res) {
             feedbacks.length = 500;
         }
 
-        const saved = writeFeedbacks(feedbacks);
+        const saved = await writeFeedbacksAsync(feedbacks);
         if (!saved) {
             return res.status(500).json({ status: false, message: 'Gagal menyimpan pesan masukan' });
         }
@@ -80,7 +80,7 @@ module.exports = function (req, res) {
 
     // 2. GET: Admin fetches feedbacks
     if (method === 'GET') {
-        const feedbacks = readFeedbacks();
+        const feedbacks = await readFeedbacksAsync();
         return res.json({
             status: true,
             feedbacks: feedbacks,
@@ -93,7 +93,7 @@ module.exports = function (req, res) {
     if (method === 'PATCH') {
         const body = req.body || {};
         const id = body.id;
-        const feedbacks = readFeedbacks();
+        const feedbacks = await readFeedbacksAsync();
         const item = feedbacks.find(f => f.id === id);
 
         if (!item) {
@@ -101,7 +101,7 @@ module.exports = function (req, res) {
         }
 
         item.isRead = typeof body.isRead === 'boolean' ? body.isRead : !item.isRead;
-        writeFeedbacks(feedbacks);
+        await writeFeedbacksAsync(feedbacks);
 
         return res.json({ status: true, item: item });
     }
@@ -113,7 +113,7 @@ module.exports = function (req, res) {
             return res.status(400).json({ status: false, message: 'ID pesan wajib diisi' });
         }
 
-        let feedbacks = readFeedbacks();
+        let feedbacks = await readFeedbacksAsync();
         const initialLen = feedbacks.length;
         feedbacks = feedbacks.filter(f => f.id !== id);
 
@@ -121,7 +121,7 @@ module.exports = function (req, res) {
             return res.status(404).json({ status: false, message: 'Pesan tidak ditemukan' });
         }
 
-        writeFeedbacks(feedbacks);
+        await writeFeedbacksAsync(feedbacks);
         return res.json({ status: true, message: 'Pesan berhasil dihapus' });
     }
 

@@ -58,11 +58,43 @@ const PRESETS = [
         badge: '⚠️ PERINGATAN',
         type: 'warning',
         icon: 'alert-triangle',
-        text: 'Sedang terjadi kendala koneksi pada beberapa server upstream. Sistem sedang melakukan pengalihan rute otomatis agar audio tetap berputar.'
+        text: 'Penyedia layanan API musik sedang mengalami lonjakan lalu lintas tinggi. Jika pemutaran lagu lambat, mohon refresh beberapa saat lagi.'
     }
 ];
 
-function getStoredBroadcast() {
+async function getStoredBroadcastAsync() {
+    const defaultData = {
+        enabled: false,
+        title: '',
+        text: '',
+        badge: 'PENGUMUMAN',
+        type: 'info',
+        speed: 'normal',
+        icon: 'megaphone',
+        displayMode: 'both',
+        closable: true,
+        updatedAt: new Date().toISOString()
+    };
+
+    const stored = await storage.readDataAsync(BROADCAST_FILE, defaultData);
+    if (stored && typeof stored === 'object') {
+        return {
+            enabled: !!stored.enabled,
+            title: typeof stored.title === 'string' ? stored.title : '',
+            text: typeof stored.text === 'string' ? stored.text : '',
+            badge: typeof stored.badge === 'string' ? stored.badge : 'PENGUMUMAN',
+            type: stored.type || 'info',
+            speed: stored.speed || 'normal',
+            icon: stored.icon || 'megaphone',
+            displayMode: stored.displayMode || 'both',
+            closable: stored.closable !== false,
+            updatedAt: stored.updatedAt || defaultData.updatedAt
+        };
+    }
+    return defaultData;
+}
+
+function getStoredBroadcastSync() {
     const defaultData = {
         enabled: false,
         title: '',
@@ -94,17 +126,17 @@ function getStoredBroadcast() {
     return defaultData;
 }
 
-function saveBroadcast(config) {
-    return storage.writeData(BROADCAST_FILE, config);
+async function saveBroadcastAsync(config) {
+    return await storage.writeDataAsync(BROADCAST_FILE, config);
 }
 
-module.exports = function (req, res) {
+module.exports = async function (req, res) {
     res.setHeader('Content-Type', 'application/json');
     const method = req.method.toUpperCase();
 
     // GET /api/broadcast - Public broadcast state
     if (method === 'GET') {
-        const current = getStoredBroadcast();
+        const current = await getStoredBroadcastAsync();
         return res.json({
             status: true,
             ...current,
@@ -147,7 +179,7 @@ module.exports = function (req, res) {
             updatedAt: new Date().toISOString()
         };
 
-        const success = saveBroadcast(newConfig);
+        const success = await saveBroadcastAsync(newConfig);
         if (!success) {
             return res.status(500).json({ status: false, message: 'Gagal menyimpan konfigurasi broadcast pengumuman' });
         }
@@ -163,4 +195,5 @@ module.exports = function (req, res) {
     return res.status(405).json({ status: false, message: 'Metode tidak didukung' });
 };
 
-module.exports.getStoredBroadcast = getStoredBroadcast;
+module.exports.getStoredBroadcast = getStoredBroadcastSync;
+module.exports.getStoredBroadcastAsync = getStoredBroadcastAsync;
