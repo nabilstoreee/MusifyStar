@@ -85,6 +85,7 @@ app.all('/api/analytics', require('./api/analytics.js'));
 app.all('/api/theme', require('./api/theme.js'));
 app.all('/api/broadcast', require('./api/broadcast.js'));
 app.all('/api/version', require('./api/version.js'));
+app.all('/api/user-auth', require('./api/user-auth.js'));
 
 // Proxy audio needs to stream in node, bypassing edge function
 app.get('/api/proxy-audio', (req, res) => {
@@ -173,6 +174,14 @@ app.get('/qris.png', (req, res) => {
 
 // Static files (from public)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// API Fallback handler (Return JSON for /api/ routes instead of index.html)
+app.use('/api/*', (req, res) => {
+    return res.status(404).json({
+        status: false,
+        message: `API endpoint '${req.originalUrl}' tidak ditemukan.`
+    });
+});
 
 // Fallback for SPA routing
 app.use((req, res) => {
