@@ -11,9 +11,6 @@
           "data/**",
           "data/.*",
           "data/*.json",
-          "data json/**",
-          "data json/.*",
-          "data json/*.json",
           ".*.json"
         ]
       }
