@@ -4,6 +4,51 @@ const crypto = require('crypto');
 const adminAuth = require('./admin-auth.js');
 const storage = require('./storage.js');
 
+const USER_JWT_SECRET = process.env.USER_JWT_SECRET || 'musifystar_user_secret_key_v2_sign_98741';
+
+function safeCompare(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function createSignedUserToken(userId, username) {
+    const payload = {
+        uid: userId,
+        u: username,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days
+    };
+    const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = crypto.createHmac('sha256', USER_JWT_SECRET).update(payloadStr).digest('base64url');
+    return `usr_${payloadStr}.${signature}`;
+}
+
+function verifyUserToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+    if (!cleanToken) return null;
+
+    if (cleanToken.startsWith('usr_')) {
+        const parts = cleanToken.slice(4).split('.');
+        if (parts.length === 2) {
+            const [payloadStr, signature] = parts;
+            try {
+                const expectedSig = crypto.createHmac('sha256', USER_JWT_SECRET).update(payloadStr).digest('base64url');
+                if (safeCompare(signature, expectedSig)) {
+                    const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf8'));
+                    if (payload && payload.uid && payload.exp && Math.floor(Date.now() / 1000) < payload.exp) {
+                        return payload;
+                    }
+                }
+            } catch (e) {}
+        }
+    }
+    return null;
+}
+
 function readBanRegistry() {
     try {
         const data = storage.readData('.ban_registry.json', {});
@@ -565,14 +610,28 @@ module.exports = async (req, res) => {
     // GET /api/user-auth?action=me
     if (req.method === 'GET' || action === 'me') {
         const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.query.token;
-        if (!token || !db.sessions[token]) {
+        if (!token) {
             return res.json({ status: true, authenticated: false, user: null });
         }
-        const session = db.sessions[token];
-        const user = db.users.find(u => u.id === session.userId);
+
+        let targetUserId = null;
+        const verifiedPayload = verifyUserToken(token);
+        if (verifiedPayload && verifiedPayload.uid) {
+            targetUserId = verifiedPayload.uid;
+        } else if (db.sessions && db.sessions[token]) {
+            targetUserId = db.sessions[token].userId;
+        }
+
+        if (!targetUserId) {
+            return res.json({ status: true, authenticated: false, user: null });
+        }
+
+        const user = db.users.find(u => u.id === targetUserId);
         if (!user) {
-            delete db.sessions[token];
-            writeData(db);
+            if (db.sessions && db.sessions[token]) {
+                delete db.sessions[token];
+                writeData(db);
+            }
             return res.json({ status: true, authenticated: false, user: null });
         }
 
@@ -656,7 +715,8 @@ module.exports = async (req, res) => {
         db.users.push(newUser);
 
         // Auto login after register
-        const token = 'tok_' + crypto.randomBytes(32).toString('hex');
+        const token = createSignedUserToken(newUser.id, newUser.username);
+        db.sessions = db.sessions || {};
         db.sessions[token] = {
             userId: newUser.id,
             createdAt: Date.now(),
@@ -739,7 +799,8 @@ module.exports = async (req, res) => {
             user.loginLogs = user.loginLogs.slice(0, 20);
         }
 
-        const token = 'tok_' + crypto.randomBytes(32).toString('hex');
+        const token = createSignedUserToken(user.id, user.username);
+        db.sessions = db.sessions || {};
         db.sessions[token] = {
             userId: user.id,
             createdAt: Date.now(),
