@@ -5,6 +5,30 @@ var Auth = {
     isPasswordVisible: false,
 
     init() {
+        // Check persistent local ban first
+        try {
+            var savedBanRaw = localStorage.getItem('musifystar_active_ban');
+            if (savedBanRaw) {
+                var savedBan = JSON.parse(savedBanRaw);
+                if (savedBan && savedBan.ban && (savedBan.ban.isBanned || savedBan.ban.isIpBanned)) {
+                    var isExpired = false;
+                    if (savedBan.ban.banType === 'temporary' && savedBan.ban.banExpiresAt) {
+                        if (new Date(savedBan.ban.banExpiresAt).getTime() <= Date.now()) {
+                            isExpired = true;
+                        }
+                    }
+                    if (!isExpired) {
+                        Auth.activeBannedUser = savedBan.user || null;
+                        setTimeout(function() {
+                            Auth.showBanModal(savedBan.ban);
+                        }, 80);
+                    } else {
+                        localStorage.removeItem('musifystar_active_ban');
+                    }
+                }
+            }
+        } catch(e) {}
+
         var savedToken = localStorage.getItem('musifystar_auth_token') || sessionStorage.getItem('musifystar_auth_token');
         var savedUser = localStorage.getItem('musifystar_auth_user') || sessionStorage.getItem('musifystar_auth_user');
         if (savedToken) {
@@ -68,7 +92,16 @@ var Auth = {
             }
 
             if (data && data.authenticated && data.user) {
+                Auth._failedSessionChecks = 0;
                 Auth.currentUser = data.user;
+                if (data.newToken) {
+                    Auth.token = data.newToken;
+                    if (localStorage.getItem('musifystar_auth_token')) {
+                        localStorage.setItem('musifystar_auth_token', data.newToken);
+                    } else {
+                        sessionStorage.setItem('musifystar_auth_token', data.newToken);
+                    }
+                }
                 if (localStorage.getItem('musifystar_auth_token')) {
                     localStorage.setItem('musifystar_auth_user', JSON.stringify(data.user));
                 } else {
@@ -76,7 +109,8 @@ var Auth = {
                 }
                 Auth.updateHeaderUI();
             } else if (Auth.token && data && data.status && data.authenticated === false) {
-                Auth.logout(false);
+                // Do not aggressively force logout on background polling.
+                // User stays logged in and session is preserved.
             }
         } catch (e) {
             console.warn('Check session error:', e);
@@ -906,10 +940,21 @@ var Auth = {
             } catch(e) {}
 
             if (data && (data.banned || (data.ban && data.ban.isBanned))) {
-                Auth.activeBannedUser = { username: username, email: email, userId: data.user?.id };
+                var canonicalUsername = data.user?.username || username;
+                var canonicalEmail = data.user?.rawEmail || data.user?.email || email;
+                var canonicalUserId = data.user?.id || '';
+                Auth.activeBannedUser = { username: canonicalUsername, email: canonicalEmail, userId: canonicalUserId };
+                try {
+                    localStorage.setItem('musifystar_active_ban', JSON.stringify({
+                        ban: data.ban,
+                        user: Auth.activeBannedUser,
+                        timestamp: Date.now()
+                    }));
+                } catch(e) {}
                 gid('header-auth-dropdown-wrapper')?.remove();
                 Auth.showBanModal(data.ban);
             } else if (data && data.status && data.token) {
+                try { localStorage.removeItem('musifystar_active_ban'); } catch(e) {}
                 Auth.token = data.token;
                 Auth.currentUser = data.user;
                 if (remember) {
@@ -1121,27 +1166,39 @@ var Auth = {
 
     async checkBanStatusNow(silent = false) {
         try {
-            var isStillBanned = false;
+            var isExplicitlyUnbanned = false;
+
             if (Auth.token) {
                 var res = await fetch('/api/user-auth?action=me', {
                     headers: { 'Authorization': 'Bearer ' + Auth.token },
                     cache: 'no-store'
                 });
                 var data = await res.json();
-                isStillBanned = data && (data.ipBanned || data.banned || (data.ban && (data.ban.isBanned || data.ban.isIpBanned || data.ban.isWarning)));
-            } else if (Auth.activeBannedUser && (Auth.activeBannedUser.username || Auth.activeBannedUser.userId)) {
-                var resBan = await fetch('/api/user-auth?action=check_account_ban&username=' + encodeURIComponent(Auth.activeBannedUser.username || '') + '&userId=' + encodeURIComponent(Auth.activeBannedUser.userId || ''), { cache: 'no-store' });
+                if (data && data.status && data.authenticated && !data.banned && (!data.ban || (!data.ban.isBanned && !data.ban.isIpBanned))) {
+                    isExplicitlyUnbanned = true;
+                }
+            } else if (Auth.activeBannedUser && (Auth.activeBannedUser.username || Auth.activeBannedUser.userId || Auth.activeBannedUser.email)) {
+                var url = '/api/user-auth?action=check_account_ban' +
+                    '&username=' + encodeURIComponent(Auth.activeBannedUser.username || '') +
+                    '&userId=' + encodeURIComponent(Auth.activeBannedUser.userId || '') +
+                    '&email=' + encodeURIComponent(Auth.activeBannedUser.email || '');
+                var resBan = await fetch(url, { cache: 'no-store' });
                 var dataBan = await resBan.json();
-                isStillBanned = dataBan && dataBan.banned;
+                if (dataBan && dataBan.status && dataBan.banned === false && dataBan.unbanned === true) {
+                    isExplicitlyUnbanned = true;
+                }
             } else {
                 var resIp = await fetch('/api/user-auth?action=me', { cache: 'no-store' });
                 var dataIp = await resIp.json();
-                isStillBanned = dataIp && (dataIp.ipBanned || (dataIp.ban && dataIp.ban.isIpBanned));
+                if (dataIp && dataIp.status && !dataIp.ipBanned && (!dataIp.ban || !dataIp.ban.isIpBanned)) {
+                    isExplicitlyUnbanned = true;
+                }
             }
 
-            if (!isStillBanned) {
+            if (isExplicitlyUnbanned) {
                 if (window._banModalPollTimer) clearInterval(window._banModalPollTimer);
                 Auth.activeBannedUser = null;
+                try { localStorage.removeItem('musifystar_active_ban'); } catch(e) {}
                 var modal = gid('user-banned-banner-modal');
                 if (modal) modal.remove();
                 if (typeof showToast === 'function') {
@@ -1163,6 +1220,7 @@ var Auth = {
     logoutAndReload() {
         if (window._banModalPollTimer) clearInterval(window._banModalPollTimer);
         Auth.logout(false);
+        try { localStorage.removeItem('musifystar_active_ban'); } catch(e) {}
         var modal = gid('user-banned-banner-modal');
         if (modal) modal.remove();
         window.location.reload();
