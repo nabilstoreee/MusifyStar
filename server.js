@@ -129,6 +129,13 @@ app.get('/api/proxy-audio', (req, res) => {
             if (proxyRes.headers[h]) res.setHeader(h, proxyRes.headers[h]);
         });
         if (!res.getHeader('accept-ranges')) res.setHeader('Accept-Ranges', 'bytes');
+
+        if (req.query.download === '1' || req.query.filename) {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            let fn = (req.query.filename || 'track.mp3').replace(/[\r\n"']/g, '').replace(/[^a-zA-Z0-9_\-\. ]/g, '_').trim();
+            if (!fn.toLowerCase().endsWith('.mp3')) fn += '.mp3';
+            res.setHeader('Content-Disposition', `attachment; filename="${fn}"; filename*=UTF-8''${encodeURIComponent(fn)}`);
+        }
         
         proxyRes.pipe(res);
     });
