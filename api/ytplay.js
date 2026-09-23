@@ -5,11 +5,43 @@ const crypto = require('crypto');
 const ytCache = new Map();
 const CACHE_TTL = 90 * 60 * 1000;
 
-async function getDownload(url) {
+// Multi-source fast extractors (SaveTube high-speed MP3 CDNs)
+const SAVETUBE_CDNS = [
+  "cdn400.savetube.vip",
+  "cdn401.savetube.vip",
+  "cdn403.savetube.vip",
+  "cdn405.savetube.vip"
+];
+
+async function resolveToVideoId(query) {
+  if (!query) return null;
   const idMatch = [
     /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
     /youtu\.be\/([a-zA-Z0-9_-]{11})/
-  ].find(p => p.test(url))?.exec(url)?.[1] || (url.length === 11 ? url : null);
+  ].find(p => p.test(query))?.exec(query)?.[1] || (query.length === 11 && !query.includes(' ') ? query : null);
+
+  if (idMatch) return idMatch;
+
+  try {
+    const payload = {
+      context: { client: { clientName: 'WEB_REMIX', clientVersion: '1.20240101.00.00', hl: 'id', gl: 'ID' } },
+      query: query
+    };
+    const { data } = await axios.post('https://music.youtube.com/youtubei/v1/search?prettyPrint=false', payload, {
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+      timeout: 8000
+    });
+    const jsonStr = JSON.stringify(data);
+    const m = jsonStr.match(/\"videoId\":\"([a-zA-Z0-9_-]{11})\"/);
+    if (m && m[1]) return m[1];
+  } catch(e) {
+    console.warn('[EXTRACT] Failed to resolve query to video ID:', e.message);
+  }
+  return null;
+}
+
+async function getDownload(url) {
+  const idMatch = await resolveToVideoId(url);
 
   if (!idMatch) {
     console.error("Invalid URL or video ID:", url);
@@ -24,23 +56,16 @@ async function getDownload(url) {
   }
 
   const fullUrl = "https://www.youtube.com/watch?v=" + idMatch;
-  const cdns = ["cdn405.savetube.vip", "cdn403.savetube.vip", "cdn401.savetube.vip"];
 
-  // Race all CDNs in parallel instead of looping sequentially.
-  // Sequential (3 cdn x 2 attempts x 25s) could take up to 150s. Racing them
-  // means total wall time is bounded by the fastest responding CDN.
-  const PER_CDN_TIMEOUT = 25000;
-  const controller = new AbortController();
-
-  async function tryCdn(cdn) {
+  // 1. Savetube CDN Extractor (Generates direct MP3 download stream with global CORS & HTTP Range support)
+  async function trySavetube(cdn, customTimeout = 12000) {
     const api = axios.create({
       headers: {
         "content-type": "application/json",
         "origin": "https://yt.savetube.me",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
       },
-      timeout: PER_CDN_TIMEOUT,
-      signal: controller.signal
+      timeout: customTimeout
     });
 
     const infoResponse = await api.post(`https://${cdn}/v2/info`, { url: fullUrl });
@@ -67,49 +92,38 @@ async function getDownload(url) {
     });
 
     const audioUrl = downloadRes.data?.data?.downloadUrl || downloadRes.data?.downloadUrl;
-    if (!audioUrl) throw new Error(`No audio URL from ${cdn}`);
+    if (!audioUrl || !audioUrl.startsWith("http")) throw new Error(`No audio URL from ${cdn}`);
 
+    const dur = decrypted.duration || 0;
     return {
-      duration: `${Math.floor(decrypted.duration / 60)}:${(decrypted.duration % 60).toString().padStart(2, "0")}`,
+      duration: `${Math.floor(dur / 60)}:${(dur % 60).toString().padStart(2, "0")}`,
       audio: audioUrl,
-      cdn
+      source: `savetube:${cdn}`
     };
   }
 
+  // Race all CDNs concurrently
+  const attempts = SAVETUBE_CDNS.map(cdn => trySavetube(cdn, 12000));
+
   try {
-    const result = await Promise.any(cdns.map(cdn =>
-      tryCdn(cdn).catch(err => {
-        const isCanceled = axios.isCancel(err) ||
-          err.name === 'CanceledError' ||
-          err.code === 'ERR_CANCELED' ||
-          err.message === 'canceled' ||
-          controller.signal.aborted;
-
-        if (!isCanceled) {
-          console.warn(`[EXTRACT] ${cdn} attempt failed: ${err.message}`);
+    const winner = await Promise.any(attempts);
+    console.log(`[EXTRACT] Winner: ${winner.source}`);
+    ytCache.set(idMatch, { data: winner, expireAt: Date.now() + CACHE_TTL });
+    return winner;
+  } catch (err) {
+    for (const cdn of SAVETUBE_CDNS) {
+      try {
+        const res = await trySavetube(cdn, 15000);
+        if (res && res.audio) {
+          console.log(`[EXTRACT] Sequential Winner: ${res.source}`);
+          ytCache.set(idMatch, { data: res, expireAt: Date.now() + CACHE_TTL });
+          return res;
         }
-        throw err;
-      })
-    ));
-
-    // Winner found, stop the losing in-flight requests so they don't
-    // keep the function/connections alive uselessly.
-    controller.abort();
-
-    console.log(`[EXTRACT] Winner: ${result.cdn}`);
-    ytCache.set(idMatch, { data: result, expireAt: Date.now() + CACHE_TTL });
-    return result;
-  } catch (aggregateErr) {
-    const realErrors = aggregateErr?.errors?.filter(e =>
-      !axios.isCancel(e) &&
-      e.name !== 'CanceledError' &&
-      e.code !== 'ERR_CANCELED' &&
-      e.message !== 'canceled'
-    ) || [];
-
-    if (realErrors.length > 0) {
-      console.warn("[EXTRACT] All CDNs failed:", realErrors.map(e => e.message).join(" | "));
+      } catch (e) {
+        // Continue to next CDN candidate
+      }
     }
+    console.error("[EXTRACT] All extraction methods exhausted for video ID: " + idMatch);
     return null;
   }
 }

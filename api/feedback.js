@@ -36,13 +36,22 @@ module.exports = function (req, res) {
         }
 
         const feedbacks = readFeedbacks();
+        const userLogged = typeof body.userLogged === 'boolean' ? body.userLogged : false;
+        const username = typeof body.username === 'string' ? body.username.trim() : '';
+        const email = typeof body.email === 'string' ? body.email.trim() : '';
+        const userAvatar = typeof body.userAvatar === 'string' ? body.userAvatar.trim() : '';
+
         const newEntry = {
             id: 'fb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
             name: name,
             message: message,
             contact: contact || '-',
             createdAt: new Date().toISOString(),
-            isRead: false
+            isRead: false,
+            userLogged: userLogged,
+            username: username,
+            email: email,
+            userAvatar: userAvatar
         };
 
         feedbacks.unshift(newEntry);
