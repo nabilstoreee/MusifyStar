@@ -465,11 +465,11 @@ module.exports = async (req, res) => {
             }
             writeBanRegistry(banRegistry);
 
-            // If user is banned (permanent or temporary), invalidate all their active sessions immediately
+            // If user is banned (permanent or temporary), tag their active sessions as banned
             if (banType === 'permanent' || banType === 'temporary') {
                 Object.keys(db.sessions).forEach(tok => {
-                    if (db.sessions[tok].userId === user.id) {
-                        delete db.sessions[tok];
+                    if (db.sessions[tok] && db.sessions[tok].userId === user.id) {
+                        db.sessions[tok].banned = true;
                     }
                 });
             }
