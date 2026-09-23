@@ -229,7 +229,31 @@ function maskIp(ip) {
 }
 
 function getUserBanStatus(user) {
-    if (!user || !user.banType || user.banType === 'none') {
+    if (!user) {
+        return { isBanned: false, isWarning: false, banType: 'none', banReason: '', banExpiresAt: null, banDurationText: '' };
+    }
+
+    // Cross-check anti-tamper ban registry
+    try {
+        const banRegistry = readBanRegistry();
+        const reg = (user.id && banRegistry[user.id]) || (user.username && banRegistry[user.username.toLowerCase()]);
+        if (reg && reg.banType && reg.banType !== 'none') {
+            let isStillActive = true;
+            if (reg.banType === 'temporary' && reg.banExpiresAt) {
+                if (new Date(reg.banExpiresAt).getTime() <= Date.now()) {
+                    isStillActive = false;
+                }
+            }
+            if (isStillActive) {
+                user.banType = reg.banType;
+                user.banReason = reg.banReason || user.banReason;
+                user.banExpiresAt = reg.banExpiresAt || user.banExpiresAt;
+                user.banDurationDays = reg.banDurationDays || user.banDurationDays;
+            }
+        }
+    } catch(e) {}
+
+    if (!user.banType || user.banType === 'none') {
         return { isBanned: false, isWarning: false, banType: 'none', banReason: '', banExpiresAt: null, banDurationText: '' };
     }
 
@@ -425,8 +449,9 @@ module.exports = async (req, res) => {
             const banRegistry = readBanRegistry();
             if (banType === 'none') {
                 delete banRegistry[user.id];
+                if (user.username) delete banRegistry[user.username.toLowerCase()];
             } else {
-                banRegistry[user.id] = {
+                const regObj = {
                     userId: user.id,
                     username: user.username,
                     banType: user.banType,
@@ -435,6 +460,8 @@ module.exports = async (req, res) => {
                     banDurationDays: user.banDurationDays,
                     updatedAt: new Date().toISOString()
                 };
+                banRegistry[user.id] = regObj;
+                if (user.username) banRegistry[user.username.toLowerCase()] = regObj;
             }
             writeBanRegistry(banRegistry);
 
@@ -598,22 +625,67 @@ module.exports = async (req, res) => {
         const targetEmail = String(req.query.email || body.email || '').trim().toLowerCase();
         const targetUserId = String(req.query.userId || body.userId || '').trim();
 
+        // Also check IP ban first
+        const ipBanCheck = getIpBanStatus(clientIp);
+        if (ipBanCheck.isIpBanned) {
+            return res.json({
+                status: true,
+                banned: true,
+                ipBanned: true,
+                ban: {
+                    isBanned: true,
+                    isIpBanned: true,
+                    ip: clientIp,
+                    banType: ipBanCheck.banType,
+                    banReason: ipBanCheck.banReason,
+                    banExpiresAt: ipBanCheck.banExpiresAt,
+                    banDurationDays: ipBanCheck.banDurationDays,
+                    banDurationText: ipBanCheck.banDurationText
+                }
+            });
+        }
+
         const user = db.users.find(u => {
-            if (targetUserId && u.id === targetUserId) return true;
+            if (targetUserId && (u.id === targetUserId || u.id.toLowerCase() === targetUserId.toLowerCase())) return true;
             if (targetUsername && u.username && u.username.toLowerCase() === targetUsername) return true;
-            if (targetEmail && ((u.rawEmail && u.rawEmail.toLowerCase() === targetEmail) || u.email.toLowerCase() === targetEmail)) return true;
+            if (targetEmail && ((u.rawEmail && u.rawEmail.toLowerCase() === targetEmail) || (u.email && u.email.toLowerCase() === targetEmail))) return true;
             return false;
         });
 
+        // Direct check against ban registry
+        try {
+            const banRegistry = readBanRegistry();
+            const reg = (targetUserId && banRegistry[targetUserId]) || (targetUsername && banRegistry[targetUsername]);
+            if (reg && reg.banType && reg.banType !== 'none') {
+                let isStillActive = true;
+                if (reg.banType === 'temporary' && reg.banExpiresAt && new Date(reg.banExpiresAt).getTime() <= Date.now()) {
+                    isStillActive = false;
+                }
+                if (isStillActive) {
+                    const regBanStatus = getUserBanStatus(reg);
+                    return res.json({
+                        status: true,
+                        banned: true,
+                        unbanned: false,
+                        ban: regBanStatus,
+                        user: user ? { id: user.id, username: user.username } : null
+                    });
+                }
+            }
+        } catch(e) {}
+
         if (!user) {
-            return res.json({ status: true, banned: false });
+            // Cannot reliably determine user: do NOT return banned: false (prevents auto-unban on network or query mismatch)
+            return res.json({ status: false, banned: true, unbanned: false, message: 'Identitas akun tidak ditemukan' });
         }
 
         const banStatus = getUserBanStatus(user);
         return res.json({
             status: true,
             banned: banStatus.isBanned,
-            ban: banStatus
+            unbanned: !banStatus.isBanned,
+            ban: banStatus,
+            user: { id: user.id, username: user.username }
         });
     }
 
@@ -780,6 +852,12 @@ module.exports = async (req, res) => {
                 status: false,
                 banned: true,
                 ban: banStatus,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    rawEmail: user.rawEmail
+                },
                 message: banStatus.banReason || 'Akun Anda sedang diblokir oleh administrator.'
             });
         }
