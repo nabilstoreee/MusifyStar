@@ -1,7 +1,7 @@
 {
   "name": "MusifyStar",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "MusifyStar Studio - Web Music Player",
   "scripts": {
     "lint": "node --check public/app.js",
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "axios": "^1.18.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "pg": "^8.23.0"
   }
 }
