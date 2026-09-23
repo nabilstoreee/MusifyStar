@@ -5,12 +5,15 @@ var Auth = {
     isPasswordVisible: false,
 
     init() {
+        var savedToken = localStorage.getItem('musifystar_auth_token') || sessionStorage.getItem('musifystar_auth_token');
+        var savedUser = localStorage.getItem('musifystar_auth_user') || sessionStorage.getItem('musifystar_auth_user');
+
         // Check persistent local ban first
         try {
             var savedBanRaw = localStorage.getItem('musifystar_active_ban');
             if (savedBanRaw) {
                 var savedBan = JSON.parse(savedBanRaw);
-                if (savedBan && savedBan.ban && (savedBan.ban.isBanned || savedBan.ban.isIpBanned)) {
+                if (savedBan && savedBan.ban) {
                     var isExpired = false;
                     if (savedBan.ban.banType === 'temporary' && savedBan.ban.banExpiresAt) {
                         if (new Date(savedBan.ban.banExpiresAt).getTime() <= Date.now()) {
@@ -29,8 +32,6 @@ var Auth = {
             }
         } catch(e) {}
 
-        var savedToken = localStorage.getItem('musifystar_auth_token') || sessionStorage.getItem('musifystar_auth_token');
-        var savedUser = localStorage.getItem('musifystar_auth_user') || sessionStorage.getItem('musifystar_auth_user');
         if (savedToken) {
             Auth.token = savedToken;
             if (savedUser) {
@@ -77,16 +78,35 @@ var Auth = {
                         if (MusicPlayer.sound && typeof MusicPlayer.sound.pause === 'function') MusicPlayer.sound.pause();
                     } catch(e){}
                 }
+                if (data.user) {
+                    Auth.activeBannedUser = {
+                        username: data.user.username,
+                        userId: data.user.id,
+                        email: data.user.rawEmail || data.user.email
+                    };
+                } else if (Auth.currentUser) {
+                    Auth.activeBannedUser = {
+                        username: Auth.currentUser.username,
+                        userId: Auth.currentUser.id,
+                        email: Auth.currentUser.rawEmail || Auth.currentUser.email
+                    };
+                }
                 localStorage.removeItem('musifystar_auth_user');
                 sessionStorage.removeItem('musifystar_auth_user');
                 Auth.showBanModal(data.ban || { isBanned: true, isIpBanned: !!data.ipBanned, banReason: data.message });
                 return;
             }
 
-            // Only remove existing ban modal if user is authenticated and explicitly NOT banned
-            if (data && data.authenticated && !data.banned && (!data.ban || (!data.ban.isBanned && !data.ban.isWarning))) {
-                var existingModal = gid('user-banned-banner-modal');
-                if (existingModal) {
+            // Remove existing ban modal ONLY when confirmed safe
+            var existingModal = gid('user-banned-banner-modal');
+            if (existingModal) {
+                var modalCategory = existingModal.dataset.banCategory;
+                // If modal was for IP ban, remove only if server confirms IP is not banned
+                if (modalCategory === 'ip' && data && !data.ipBanned && (!data.ban || !data.ban.isIpBanned)) {
+                    existingModal.remove();
+                }
+                // If modal was for Account ban, remove only if user is authenticated and explicitly NOT banned
+                else if (modalCategory === 'account' && data && data.authenticated && !data.banned && (!data.ban || !data.ban.isBanned)) {
                     existingModal.remove();
                 }
             }
@@ -1104,6 +1124,7 @@ var Auth = {
 
         var modal = document.createElement('div');
         modal.id = 'user-banned-banner-modal';
+        modal.dataset.banCategory = isIpBanned ? 'ip' : 'account';
         modal.className = 'fixed inset-0 z-[999999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-4 select-none pointer-events-auto';
         modal.innerHTML = `
             <div class="relative w-full max-w-md bg-[#12141c] border ${borderClass} rounded-3xl p-6 shadow-2xl text-center space-y-5 animate-scaleIn">
@@ -1138,7 +1159,7 @@ var Auth = {
                 <div class="space-y-2">
                     <button onclick="Auth.checkBanStatusNow()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                        <span>Cek Status IP</span>
+                        <span>${isIpBanned ? 'Cek Status IP' : 'Cek Status Akun'}</span>
                     </button>
                     ${!isIpBanned ? `<button onclick="Auth.logoutAndReload()" class="w-full py-3 px-4 rounded-2xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white font-bold text-xs flex items-center justify-center gap-2 border border-white/10 active:scale-95 transition-all cursor-pointer">
                         <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
@@ -1167,31 +1188,37 @@ var Auth = {
     async checkBanStatusNow(silent = false) {
         try {
             var isExplicitlyUnbanned = false;
+            var modal = gid('user-banned-banner-modal');
+            var isIpBan = modal ? modal.dataset.banCategory === 'ip' : false;
 
-            if (Auth.token) {
-                var res = await fetch('/api/user-auth?action=me', {
-                    headers: { 'Authorization': 'Bearer ' + Auth.token },
-                    cache: 'no-store'
-                });
-                var data = await res.json();
-                if (data && data.status && data.authenticated && !data.banned && (!data.ban || (!data.ban.isBanned && !data.ban.isIpBanned))) {
-                    isExplicitlyUnbanned = true;
-                }
-            } else if (Auth.activeBannedUser && (Auth.activeBannedUser.username || Auth.activeBannedUser.userId || Auth.activeBannedUser.email)) {
-                var url = '/api/user-auth?action=check_account_ban' +
-                    '&username=' + encodeURIComponent(Auth.activeBannedUser.username || '') +
-                    '&userId=' + encodeURIComponent(Auth.activeBannedUser.userId || '') +
-                    '&email=' + encodeURIComponent(Auth.activeBannedUser.email || '');
-                var resBan = await fetch(url, { cache: 'no-store' });
-                var dataBan = await resBan.json();
-                if (dataBan && dataBan.status && dataBan.banned === false && dataBan.unbanned === true) {
-                    isExplicitlyUnbanned = true;
-                }
-            } else {
+            if (isIpBan) {
+                // IP Ban check: query server to see if IP blacklist has been lifted
                 var resIp = await fetch('/api/user-auth?action=me', { cache: 'no-store' });
                 var dataIp = await resIp.json();
                 if (dataIp && dataIp.status && !dataIp.ipBanned && (!dataIp.ban || !dataIp.ban.isIpBanned)) {
                     isExplicitlyUnbanned = true;
+                }
+            } else {
+                // Account Ban check: ONLY check the account! NEVER fallback to checking IP!
+                if (Auth.token) {
+                    var res = await fetch('/api/user-auth?action=me', {
+                        headers: { 'Authorization': 'Bearer ' + Auth.token },
+                        cache: 'no-store'
+                    });
+                    var data = await res.json();
+                    if (data && data.status && data.authenticated && !data.banned && (!data.ban || (!data.ban.isBanned && !data.ban.isWarning))) {
+                        isExplicitlyUnbanned = true;
+                    }
+                } else if (Auth.activeBannedUser && (Auth.activeBannedUser.username || Auth.activeBannedUser.userId || Auth.activeBannedUser.email)) {
+                    var url = '/api/user-auth?action=check_account_ban' +
+                        '&username=' + encodeURIComponent(Auth.activeBannedUser.username || '') +
+                        '&userId=' + encodeURIComponent(Auth.activeBannedUser.userId || '') +
+                        '&email=' + encodeURIComponent(Auth.activeBannedUser.email || '');
+                    var resBan = await fetch(url, { cache: 'no-store' });
+                    var dataBan = await resBan.json();
+                    if (dataBan && dataBan.status && dataBan.banned === false && dataBan.unbanned === true) {
+                        isExplicitlyUnbanned = true;
+                    }
                 }
             }
 
@@ -1199,7 +1226,6 @@ var Auth = {
                 if (window._banModalPollTimer) clearInterval(window._banModalPollTimer);
                 Auth.activeBannedUser = null;
                 try { localStorage.removeItem('musifystar_active_ban'); } catch(e) {}
-                var modal = gid('user-banned-banner-modal');
                 if (modal) modal.remove();
                 if (typeof showToast === 'function') {
                     showToast('Selamat! Blokir / Banned akun Anda telah dibuka oleh administrator.');
@@ -1219,11 +1245,22 @@ var Auth = {
 
     logoutAndReload() {
         if (window._banModalPollTimer) clearInterval(window._banModalPollTimer);
-        Auth.logout(false);
-        try { localStorage.removeItem('musifystar_active_ban'); } catch(e) {}
+        if (window._realtimeBanMonitorTimer) clearInterval(window._realtimeBanMonitorTimer);
+        Auth.activeBannedUser = null;
+        Auth.currentUser = null;
+        Auth.token = null;
+        try {
+            localStorage.removeItem('musifystar_auth_token');
+            localStorage.removeItem('musifystar_auth_user');
+            sessionStorage.removeItem('musifystar_auth_token');
+            sessionStorage.removeItem('musifystar_auth_user');
+            localStorage.removeItem('musifystar_active_ban');
+        } catch(e) {}
         var modal = gid('user-banned-banner-modal');
         if (modal) modal.remove();
-        window.location.reload();
+        setTimeout(function() {
+            window.location.reload();
+        }, 50);
     }
 };
 
