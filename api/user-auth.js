@@ -49,6 +49,16 @@ function verifyUserToken(token) {
     return null;
 }
 
+function getUserIdFromToken(token, db) {
+    if (!token || typeof token !== 'string') return null;
+    const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+    if (!cleanToken) return null;
+    const verified = verifyUserToken(cleanToken);
+    if (verified && verified.uid) return verified.uid;
+    if (db && db.sessions && db.sessions[cleanToken]) return db.sessions[cleanToken].userId;
+    return null;
+}
+
 function readBanRegistry() {
     try {
         const data = storage.readData('.ban_registry.json', {});
@@ -614,14 +624,7 @@ module.exports = async (req, res) => {
             return res.json({ status: true, authenticated: false, user: null });
         }
 
-        let targetUserId = null;
-        const verifiedPayload = verifyUserToken(token);
-        if (verifiedPayload && verifiedPayload.uid) {
-            targetUserId = verifiedPayload.uid;
-        } else if (db.sessions && db.sessions[token]) {
-            targetUserId = db.sessions[token].userId;
-        }
-
+        const targetUserId = getUserIdFromToken(token, db);
         if (!targetUserId) {
             return res.json({ status: true, authenticated: false, user: null });
         }
@@ -715,7 +718,7 @@ module.exports = async (req, res) => {
         db.users.push(newUser);
 
         // Auto login after register
-        const token = createSignedUserToken(newUser.id, newUser.username);
+        const token = createSignedUserToken(newUser);
         db.sessions = db.sessions || {};
         db.sessions[token] = {
             userId: newUser.id,
@@ -827,11 +830,11 @@ module.exports = async (req, res) => {
     // POST /api/user-auth?action=update_profile
     if (action === 'update_profile') {
         const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.body?.token;
-        if (!token || !db.sessions[token]) {
+        const targetUserId = getUserIdFromToken(token, db);
+        if (!targetUserId) {
             return res.status(401).json({ status: false, message: 'Sesi login tidak valid atau sudah berakhir' });
         }
-        const session = db.sessions[token];
-        const userIndex = db.users.findIndex(u => u.id === session.userId);
+        const userIndex = db.users.findIndex(u => u.id === targetUserId);
         if (userIndex === -1) {
             return res.status(404).json({ status: false, message: 'Pengguna tidak ditemukan' });
         }
@@ -888,11 +891,11 @@ module.exports = async (req, res) => {
     // POST /api/user-auth?action=update_password
     if (action === 'update_password') {
         const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.body?.token;
-        if (!token || !db.sessions[token]) {
+        const targetUserId = getUserIdFromToken(token, db);
+        if (!targetUserId) {
             return res.status(401).json({ status: false, message: 'Sesi login tidak valid' });
         }
-        const session = db.sessions[token];
-        const user = db.users.find(u => u.id === session.userId);
+        const user = db.users.find(u => u.id === targetUserId);
         if (!user) {
             return res.status(404).json({ status: false, message: 'Pengguna tidak ditemukan' });
         }
