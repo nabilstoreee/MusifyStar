@@ -176,11 +176,14 @@ app.get('/qris.png', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API Fallback handler (Return JSON for /api/ routes instead of index.html)
-app.use('/api/*', (req, res) => {
-    return res.status(404).json({
-        status: false,
-        message: `API endpoint '${req.originalUrl}' tidak ditemukan.`
-    });
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path === '/api') {
+        return res.status(404).json({
+            status: false,
+            message: `API endpoint '${req.originalUrl}' tidak ditemukan.`
+        });
+    }
+    next();
 });
 
 // Fallback for SPA routing
