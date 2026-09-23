@@ -75,7 +75,7 @@ var Auth = {
                     sessionStorage.setItem('musifystar_auth_user', JSON.stringify(data.user));
                 }
                 Auth.updateHeaderUI();
-            } else if (Auth.token) {
+            } else if (Auth.token && data && data.status && data.authenticated === false) {
                 Auth.logout(false);
             }
         } catch (e) {
@@ -1020,22 +1020,22 @@ var Auth = {
         var isIpBanned = !!(ban.isIpBanned || ban.ipBanned);
         var isBanned = !!(ban.isBanned || isIpBanned);
 
-        var titleText = isIpBanned ? 'ALAMAT IP DIBANNED' : (isBanned ? 'AKUN ANDA DIBANNED' : 'PERINGATAN DARI SISTEM');
+        var titleText = isIpBanned ? 'ALAMAT IP DIBANNED' : (isBanned ? 'AKUN ANDA DIBANNED' : 'PERINGATAN DARI ADMIN');
         var iconClass = isIpBanned ? 'text-red-500 animate-pulse' : (isBanned ? 'text-rose-500 animate-pulse' : 'text-amber-400 animate-bounce');
         var iconName = isIpBanned ? 'wifi-off' : (isBanned ? 'shield-alert' : 'alert-triangle');
         var borderClass = isIpBanned ? 'border-red-600/70 shadow-red-600/40' : (isBanned ? 'border-rose-500/50 shadow-rose-500/30' : 'border-amber-500/50 shadow-amber-500/30');
         var badgeClass = isIpBanned ? 'bg-red-600/30 text-red-200 border-red-500/60' : (isBanned ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-amber-500/20 text-amber-300 border-amber-500/40');
 
-        var banTypeLabel = isIpBanned ? 'BANNED IP ADDRESS BLACKLIST' : 'dibanned permanen';
+        var banTypeLabel = isIpBanned ? 'BANNED IP ADDRESS (BLACKLIST)' : 'dibanned permanen';
         if (!isIpBanned) {
             if (ban.banType === 'temporary') {
-                banTypeLabel = 'INFORMASI SISTEM';
+                banTypeLabel = 'dibanned sementara';
             } else if (ban.banType === 'warning') {
-                banTypeLabel = 'INFORMASI SISTEM';
+                banTypeLabel = 'peringatan';
             }
         } else {
             if (ban.banType === 'temporary') {
-                banTypeLabel = 'IP DIBANNED';
+                banTypeLabel = 'IP DIBANNED SEMENTARA';
             }
         }
 
@@ -1086,7 +1086,7 @@ var Auth = {
                 </div>
 
                 <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-300/80 leading-snug">
-                    ${isIpBanned ? 'Akses jaringan dari IP Address ini dibanned oleh sistem hubungi admin jika Anda merasa ini kekeliruan.' : 'Akun ini dibanned oleh sistem dan tidak dapat dipulihkan, silahkan anda keluar dari akun ini thankyou'}
+                    ${isIpBanned ? 'Akses jaringan dari IP Address ini diblokir total oleh server. Hubungi administrator jika Anda merasa ini kekeliruan.' : 'Akun ini dibanned oleh sistem dan tidak dapat dipulihkan, silahkan anda keluar dari akun ini thankyou'}
                 </div>
 
                 <!-- Action Buttons: Cek Status & Keluar Akun -->
@@ -1145,7 +1145,7 @@ var Auth = {
                 var modal = gid('user-banned-banner-modal');
                 if (modal) modal.remove();
                 if (typeof showToast === 'function') {
-                    showToast('Selamat! Blokir / Banned akun Anda telah dibuka oleh sistem.');
+                    showToast('Selamat! Blokir / Banned akun Anda telah dibuka oleh administrator.');
                 }
                 setTimeout(function() { window.location.reload(); }, 600);
             } else if (!silent) {
