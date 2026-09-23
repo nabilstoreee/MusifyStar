@@ -3,10 +3,18 @@ var Auth = {
     token: null,
     mode: 'login', // 'login' | 'register'
     isPasswordVisible: false,
+    activeBannedUser: null,
 
     init() {
         var savedToken = localStorage.getItem('musifystar_auth_token') || sessionStorage.getItem('musifystar_auth_token');
         var savedUser = localStorage.getItem('musifystar_auth_user') || sessionStorage.getItem('musifystar_auth_user');
+
+        if (savedToken) {
+            Auth.token = savedToken;
+            if (savedUser) {
+                try { Auth.currentUser = JSON.parse(savedUser); } catch(e) {}
+            }
+        }
 
         // Check persistent local ban first
         try {
@@ -32,12 +40,6 @@ var Auth = {
             }
         } catch(e) {}
 
-        if (savedToken) {
-            Auth.token = savedToken;
-            if (savedUser) {
-                try { Auth.currentUser = JSON.parse(savedUser); } catch(e) {}
-            }
-        }
         Auth.checkSession();
         Auth.startRealtimeBanMonitor();
 
@@ -78,6 +80,7 @@ var Auth = {
                         if (MusicPlayer.sound && typeof MusicPlayer.sound.pause === 'function') MusicPlayer.sound.pause();
                     } catch(e){}
                 }
+
                 if (data.user) {
                     Auth.activeBannedUser = {
                         username: data.user.username,
@@ -91,28 +94,34 @@ var Auth = {
                         email: Auth.currentUser.rawEmail || Auth.currentUser.email
                     };
                 }
-                localStorage.removeItem('musifystar_auth_user');
-                sessionStorage.removeItem('musifystar_auth_user');
+
+                // Simpan cache ban aktif secara konsisten
+                try {
+                    localStorage.setItem('musifystar_active_ban', JSON.stringify({
+                        ban: data.ban || { isBanned: true, banReason: data.message },
+                        user: Auth.activeBannedUser,
+                        timestamp: Date.now()
+                    }));
+                } catch(e) {}
+
                 Auth.showBanModal(data.ban || { isBanned: true, isIpBanned: !!data.ipBanned, banReason: data.message });
                 return;
             }
 
-            // Remove existing ban modal ONLY when confirmed safe
+            // Remove existing ban modal ONLY when confirmed safe & unbanned by server
             var existingModal = gid('user-banned-banner-modal');
             if (existingModal) {
                 var modalCategory = existingModal.dataset.banCategory;
-                // If modal was for IP ban, remove only if server confirms IP is not banned
                 if (modalCategory === 'ip' && data && !data.ipBanned && (!data.ban || !data.ban.isIpBanned)) {
                     existingModal.remove();
-                }
-                // If modal was for Account ban, remove only if user is authenticated and explicitly NOT banned
-                else if (modalCategory === 'account' && data && data.authenticated && !data.banned && (!data.ban || !data.ban.isBanned)) {
+                    localStorage.removeItem('musifystar_active_ban');
+                } else if (modalCategory === 'account' && data && !data.banned && (!data.ban || !data.ban.isBanned)) {
                     existingModal.remove();
+                    localStorage.removeItem('musifystar_active_ban');
                 }
             }
 
             if (data && data.authenticated && data.user) {
-                Auth._failedSessionChecks = 0;
                 Auth.currentUser = data.user;
                 if (data.newToken) {
                     Auth.token = data.newToken;
@@ -128,9 +137,6 @@ var Auth = {
                     sessionStorage.setItem('musifystar_auth_user', JSON.stringify(data.user));
                 }
                 Auth.updateHeaderUI();
-            } else if (Auth.token && data && data.status && data.authenticated === false) {
-                // Do not aggressively force logout on background polling.
-                // User stays logged in and session is preserved.
             }
         } catch (e) {
             console.warn('Check session error:', e);
@@ -164,16 +170,11 @@ var Auth = {
         wrapper.id = 'header-auth-dropdown-wrapper';
         wrapper.className = 'fixed inset-0 z-50 flex justify-end items-start pt-16 pr-4 sm:pr-8 animate-fadeIn pointer-events-auto';
         wrapper.innerHTML = `
-            <!-- Backdrop click to dismiss -->
             <div onclick="gid('header-auth-dropdown-wrapper')?.remove()" class="fixed inset-0 bg-black/40 backdrop-blur-[2px]"></div>
-
-            <!-- Floating Card Anchored Under Profile Button -->
             <div class="relative z-10 w-[92vw] max-w-[340px] bg-[#12141c]/95 backdrop-blur-2xl border border-white/20 rounded-3xl p-5 shadow-2xl shadow-black/80 text-left transition-all duration-300 transform scale-100 origin-top-right">
-                <!-- Close Button -->
                 <button onclick="gid('header-auth-dropdown-wrapper')?.remove()" class="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition active:scale-95 cursor-pointer">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
-
                 <div id="header-auth-content">
                     ${Auth.currentUser ? Auth.getLoggedInDropdownHTML() : Auth.getFormHTML('header-')}
                 </div>
@@ -220,7 +221,6 @@ var Auth = {
         if (Auth.mode === 'login') {
             return `
             <div>
-                <!-- Header -->
                 <div class="flex items-center gap-2.5 mb-4 pr-6">
                     <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
                         <i data-lucide="log-in" class="w-4 h-4"></i>
@@ -232,7 +232,6 @@ var Auth = {
                 </div>
 
                 <form onsubmit="Auth.handleLogin(event, '${prefix}')" class="space-y-3">
-                    <!-- Username -->
                     <div>
                         <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center gap-1.5">
                             <i data-lucide="user" class="w-3.5 h-3.5 text-sky-400"></i> Username
@@ -240,7 +239,6 @@ var Auth = {
                         <input type="text" id="${prefix}auth-login-username" required placeholder="Masukkan username" class="w-full bg-black/50 border border-white/15 focus:border-sky-400 focus:ring-1 focus:ring-sky-400 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
                     </div>
 
-                    <!-- Email -->
                     <div>
                         <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center gap-1.5">
                             <i data-lucide="mail" class="w-3.5 h-3.5 text-emerald-400"></i> Email
@@ -248,7 +246,6 @@ var Auth = {
                         <input type="email" id="${prefix}auth-login-email" required placeholder="contoh@email.com" class="w-full bg-black/50 border border-white/15 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
                     </div>
 
-                    <!-- Password 6 huruf ada tombol mata -->
                     <div>
                         <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center justify-between">
                             <span class="flex items-center gap-1.5">
@@ -263,7 +260,6 @@ var Auth = {
                         </div>
                     </div>
 
-                    <!-- Simpan Login (Remember me) -->
                     <div class="flex items-center justify-between pt-0.5">
                         <label class="flex items-center gap-2 cursor-pointer select-none group">
                             <input type="checkbox" id="${prefix}auth-login-remember" checked class="w-3.5 h-3.5 rounded bg-black/50 border-white/20 text-sky-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-sky-500">
@@ -271,13 +267,11 @@ var Auth = {
                         </label>
                     </div>
 
-                    <!-- Tombol Submit -->
                     <button type="submit" id="${prefix}auth-login-btn" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-500 hover:opacity-95 active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-sky-500/25 cursor-pointer mt-1">
                         <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
                         <span>Login</span>
                     </button>
 
-                    <!-- Belum punya akun? daftar disini -->
                     <div class="text-center pt-2 border-t border-white/10">
                         <p class="text-[11px] text-white/60">
                             Belum punya akun? 
@@ -292,7 +286,6 @@ var Auth = {
         } else {
             return `
             <div>
-                <!-- Header -->
                 <div class="flex items-center gap-2.5 mb-4 pr-6">
                     <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
                         <i data-lucide="user-plus" class="w-4 h-4"></i>
@@ -304,7 +297,6 @@ var Auth = {
                 </div>
 
                 <form onsubmit="Auth.handleRegister(event, '${prefix}')" class="space-y-3">
-                    <!-- Username -->
                     <div>
                         <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center gap-1.5">
                             <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> Username
@@ -312,7 +304,6 @@ var Auth = {
                         <input type="text" id="${prefix}auth-reg-username" required placeholder="Pilih username baru" class="w-full bg-black/50 border border-white/15 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
                     </div>
 
-                    <!-- Email -->
                     <div>
                         <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center gap-1.5">
                             <i data-lucide="mail" class="w-3.5 h-3.5 text-sky-400"></i> Email
@@ -320,7 +311,6 @@ var Auth = {
                         <input type="email" id="${prefix}auth-reg-email" required placeholder="contoh@email.com" class="w-full bg-black/50 border border-white/15 focus:border-sky-400 focus:ring-1 focus:ring-sky-400 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
                     </div>
 
-                    <!-- Password 6 huruf ada tombol mata -->
                     <div>
                         <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center justify-between">
                             <span class="flex items-center gap-1.5">
@@ -335,13 +325,11 @@ var Auth = {
                         </div>
                     </div>
 
-                    <!-- Tombol Submit -->
                     <button type="submit" id="${prefix}auth-reg-btn" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 hover:opacity-95 active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-emerald-500/25 cursor-pointer mt-1">
                         <i data-lucide="user-check" class="w-3.5 h-3.5"></i>
                         <span>Daftar Akun</span>
                     </button>
 
-                    <!-- Udah punya akun? login disini -->
                     <div class="text-center pt-2 border-t border-white/10">
                         <p class="text-[11px] text-white/60">
                             Udah punya akun? 
@@ -519,11 +507,8 @@ var Auth = {
         modal.innerHTML = `
             <div onclick="gid('user-profile-modal')?.remove()" class="fixed inset-0 bg-black/80 backdrop-blur-md"></div>
             <div class="relative z-10 w-full max-w-sm bg-[#12141c]/95 border border-white/20 rounded-3xl p-5 sm:p-6 shadow-2xl shadow-black text-left space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
-                
-                <!-- Hidden Gallery File Picker (NO capture attribute: strictly phone/PC gallery only) -->
                 <input type="file" id="auth-gallery-file-input" accept="image/png, image/jpeg, image/webp, image/gif" style="display:none;" onchange="Auth.uploadAvatarFromGallery(event)">
 
-                <!-- Modal Header -->
                 <div class="flex items-center justify-between pb-3 border-b border-white/10">
                     <div class="flex items-center gap-2">
                         <div class="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-400 flex items-center justify-center">
@@ -539,7 +524,6 @@ var Auth = {
                     </button>
                 </div>
 
-                <!-- 1. Header Profil & Foto Profil (Galeri) -->
                 <div class="flex items-center gap-3.5 p-3 rounded-2xl bg-white/5 border border-white/10">
                     <div class="relative cursor-pointer shrink-0" onclick="Auth.triggerGalleryUpload()" title="Klik untuk ubah foto profil dari galeri">
                         <div class="w-16 h-16 rounded-full overflow-hidden shrink-0">
@@ -560,7 +544,6 @@ var Auth = {
                 </div>
 
                 ${isVerified ? `
-                <!-- Pengaturan Lencana Centang Biru (Accordion Toggle Buka/Tutup) -->
                 <div>
                     <button type="button" onclick="Auth.toggleBadgeSettingsPanel()" class="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-transparent hover:from-sky-500/20 hover:to-indigo-500/20 border border-sky-500/30 text-white transition-all cursor-pointer">
                         <div class="flex items-center gap-2">
@@ -582,7 +565,6 @@ var Auth = {
                         </div>
 
                         <div class="space-y-2.5 text-xs text-white/80">
-                            <!-- 1. Jarak Geser Samping -->
                             <div>
                                 <div class="flex justify-between items-center mb-1 text-[11px]">
                                     <span class="text-white/70">Jarak Ke Samping (Kiri/Kanan):</span>
@@ -593,7 +575,6 @@ var Auth = {
                                     class="w-full accent-sky-400 cursor-pointer h-1.5 bg-black/50 rounded-lg">
                             </div>
 
-                            <!-- 2. Ukuran Lencana -->
                             <div>
                                 <div class="flex justify-between items-center mb-1 text-[11px]">
                                     <span class="text-white/70">Ukuran Lencana:</span>
@@ -604,7 +585,6 @@ var Auth = {
                                     class="w-full accent-sky-400 cursor-pointer h-1.5 bg-black/50 rounded-lg">
                             </div>
 
-                            <!-- 3. Posisi Atas - Bawah -->
                             <div>
                                 <div class="flex justify-between items-center mb-1 text-[11px]">
                                     <span class="text-white/70">Posisi Vertikal (Atas/Bawah):</span>
@@ -615,7 +595,6 @@ var Auth = {
                                     class="w-full accent-sky-400 cursor-pointer h-1.5 bg-black/50 rounded-lg">
                             </div>
 
-                            <!-- 4. Pilihan Warna (Khusus: Biru, Hijau, Hitam, Putih) -->
                             <div>
                                 <span class="text-[11px] text-white/70 block mb-1.5">Warna Lencana:</span>
                                 <div class="flex items-center gap-2.5">
@@ -629,7 +608,6 @@ var Auth = {
                     </div>
                 </div>` : ''}
 
-                <!-- 2. Ubah Username (Tombol Pulpen) -->
                 <div class="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                     <div class="flex items-center justify-between">
                         <span class="text-[10px] font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1">
@@ -654,7 +632,6 @@ var Auth = {
                     </form>
                 </div>
 
-                <!-- 3. Ubah Email (Tombol Pulpen) -->
                 <div class="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                     <div class="flex items-center justify-between">
                         <span class="text-[10px] font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1">
@@ -679,7 +656,6 @@ var Auth = {
                     </form>
                 </div>
 
-                <!-- 4. Ubah Password (Tombol Logo Pulpen / Ubah Password) -->
                 <div class="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                     <div class="flex items-center justify-between">
                         <span class="text-[10px] font-semibold uppercase tracking-wider text-white/50 flex items-center gap-1">
@@ -694,18 +670,14 @@ var Auth = {
                         <span class="text-[10px] text-white/40">Klik logo pulpen untuk ubah</span>
                     </div>
                     <form id="edit-form-password" onsubmit="Auth.saveEditedPassword(event)" class="hidden space-y-2.5 pt-1">
-                        <!-- Password Baru -->
                         <div>
                             <label class="block text-[10px] font-semibold text-white/70 mb-1">Password Baru (min 6 huruf)</label>
                             <input type="password" id="modal-auth-pw-new" minlength="6" required placeholder="Masukkan password baru" class="w-full bg-black/60 border border-amber-500/50 rounded-xl px-3 py-1.5 text-xs text-white outline-none">
                         </div>
-
-                        <!-- Konfirmasi Password Baru -->
                         <div>
                             <label class="block text-[10px] font-semibold text-white/70 mb-1">Konfirmasi Password Baru</label>
                             <input type="password" id="modal-auth-pw-confirm" minlength="6" required placeholder="Ulangi password baru" class="w-full bg-black/60 border border-amber-500/50 rounded-xl px-3 py-1.5 text-xs text-white outline-none">
                         </div>
-
                         <div class="flex justify-end gap-1.5 pt-1">
                             <button type="button" onclick="Auth.toggleEditField('password')" class="px-2.5 py-1 rounded-lg bg-white/10 text-white/70 text-[10px] font-semibold cursor-pointer">Batal</button>
                             <button type="submit" id="btn-save-password" class="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer">
@@ -715,7 +687,6 @@ var Auth = {
                     </form>
                 </div>
 
-                <!-- Footer Keluar Akun -->
                 <div class="pt-2 border-t border-white/10 flex items-center justify-between">
                     <span class="text-[10px] text-white/50">Bergabung: ${joinDate}</span>
                     <button onclick="gid('user-profile-modal')?.remove(); Auth.logout();" class="text-xs px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer">
@@ -955,9 +926,7 @@ var Auth = {
                 body: JSON.stringify({ username: username, email: email, password: password, rememberMe: remember })
             });
             var data = {};
-            try {
-                data = await res.json();
-            } catch(e) {}
+            try { data = await res.json(); } catch(e) {}
 
             if (data && (data.banned || (data.ban && data.ban.isBanned))) {
                 var canonicalUsername = data.user?.username || username;
@@ -1068,8 +1037,10 @@ var Auth = {
         }
         Auth.token = null;
         Auth.currentUser = null;
+        Auth.activeBannedUser = null;
         localStorage.removeItem('musifystar_auth_token');
         localStorage.removeItem('musifystar_auth_user');
+        localStorage.removeItem('musifystar_active_ban');
         sessionStorage.removeItem('musifystar_auth_token');
         sessionStorage.removeItem('musifystar_auth_user');
         gid('header-auth-dropdown-wrapper')?.remove();
@@ -1128,12 +1099,10 @@ var Auth = {
         modal.className = 'fixed inset-0 z-[999999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-4 select-none pointer-events-auto';
         modal.innerHTML = `
             <div class="relative w-full max-w-md bg-[#12141c] border ${borderClass} rounded-3xl p-6 shadow-2xl text-center space-y-5 animate-scaleIn">
-                <!-- Icon Glow -->
                 <div class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto shadow-inner">
                     <i data-lucide="${iconName}" class="w-9 h-9 ${iconClass}"></i>
                 </div>
 
-                <!-- Title & Status Badge -->
                 <div class="space-y-2">
                     <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider border ${badgeClass}">
                         <span class="w-2 h-2 rounded-full ${isBanned ? 'bg-rose-500' : 'bg-amber-400'} animate-ping"></span>
@@ -1145,7 +1114,6 @@ var Auth = {
                     ${expiresInfo}
                 </div>
 
-                <!-- Message Card in Middle -->
                 <div class="p-4 rounded-2xl bg-white/[0.04] border border-white/10 text-left space-y-1.5 shadow-inner">
                     <span class="text-[10px] font-bold text-white/50 uppercase tracking-wider block">ALASAN DIBAN</span>
                     <p class="text-xs sm:text-sm text-white/90 leading-relaxed font-medium whitespace-pre-wrap">${ban.banReason || 'Jaringan / IP Address Anda telah dimasukkan ke dalam daftar hitam (blacklist) oleh admin.'}</p>
@@ -1155,7 +1123,6 @@ var Auth = {
                     ${isIpBanned ? 'Akses jaringan dari IP Address ini diblokir total oleh server. Hubungi administrator jika Anda merasa ini kekeliruan.' : 'Akun ini dibanned oleh sistem dan tidak dapat dipulihkan, silahkan anda keluar dari akun ini thankyou'}
                 </div>
 
-                <!-- Action Buttons: Cek Status & Keluar Akun -->
                 <div class="space-y-2">
                     <button onclick="Auth.checkBanStatusNow()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i>
@@ -1192,14 +1159,12 @@ var Auth = {
             var isIpBan = modal ? modal.dataset.banCategory === 'ip' : false;
 
             if (isIpBan) {
-                // IP Ban check: query server to see if IP blacklist has been lifted
                 var resIp = await fetch('/api/user-auth?action=me', { cache: 'no-store' });
                 var dataIp = await resIp.json();
                 if (dataIp && dataIp.status && !dataIp.ipBanned && (!dataIp.ban || !dataIp.ban.isIpBanned)) {
                     isExplicitlyUnbanned = true;
                 }
             } else {
-                // Account Ban check: ONLY check the account! NEVER fallback to checking IP!
                 if (Auth.token) {
                     var res = await fetch('/api/user-auth?action=me', {
                         headers: { 'Authorization': 'Bearer ' + Auth.token },
@@ -1216,7 +1181,7 @@ var Auth = {
                         '&email=' + encodeURIComponent(Auth.activeBannedUser.email || '');
                     var resBan = await fetch(url, { cache: 'no-store' });
                     var dataBan = await resBan.json();
-                    if (dataBan && dataBan.status && dataBan.banned === false && dataBan.unbanned === true) {
+                    if (dataBan && dataBan.status && dataBan.banned === false) {
                         isExplicitlyUnbanned = true;
                     }
                 }
