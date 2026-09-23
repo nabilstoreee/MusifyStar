@@ -36,7 +36,7 @@ function updateOnlineOfflineStatus() {
     var banner = document.getElementById('pwa-offline-banner');
     if (!navigator.onLine) {
         if (banner) banner.classList.remove('hidden');
-        showToast('Mode Offline PWA Aktif — Memutar lagu & lirik tersimpan');
+        showToast('Mode Offline APK Aktif — Memutar lagu & lirik tersimpan');
     } else {
         if (banner) banner.classList.add('hidden');
     }
@@ -59,7 +59,7 @@ function clearPwaCache() {
     localStorage.removeItem('pwa_audio_cache');
     if (typeof lyricsCache !== 'undefined') lyricsCache = {};
     if (typeof audioUrlCache !== 'undefined') audioUrlCache = {};
-    showToast('Cache offline PWA dibersihkan. Memuat ulang...');
+    showToast('Cache offline Apk dibersihkan. Memuat ulang...');
     setTimeout(function() {
         window.location.reload(true);
     }, 700);
@@ -108,7 +108,7 @@ function showPwaRequiredModal() {
         '<div class="space-y-1">'+
             '<h3 class="text-white font-bold text-sm">Install Aplikasi Terlebih Dahulu</h3>'+
             '<p class="text-white/60 text-xs leading-relaxed">'+
-                'Fitur Mode Offline khusus untuk aplikasi PWA. Silakan install MusifyStar ke layar utama terlebih dahulu.'+
+                'Fitur Mode Offline khusus untuk aplikasi. Silakan install MusifyStar ke layar utama terlebih dahulu.'+
             '</p>'+
         '</div>'+
         '<div class="space-y-2 pt-1">'+
@@ -180,13 +180,13 @@ async function saveTrackForOffline(track) {
         // Remove from offline
         list.splice(existingIndex, 1);
         try { localStorage.setItem('pwa_offline_tracks', JSON.stringify(list)); } catch(e){}
-        showToast('Lagu dihapus dari Mode Offline PWA');
+        showToast('Lagu dihapus dari Mode Offline APK');
         updateOfflineButtons();
         if (typeof OfflineView !== 'undefined' && typeof S !== 'undefined' && S.at === 'offline') OfflineView.render();
         return false;
     }
 
-    showToast('Menyimpan lagu ke Mode Offline PWA...');
+    showToast('Menyimpan lagu ke Mode Offline APK...');
 
     // 1. Add track metadata to list
     var songObj = {
@@ -273,11 +273,11 @@ function updateOfflineButtons() {
     if (fullBtn) {
         if (isSaved) {
             fullBtn.className = 'w-11 h-11 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center active:scale-90 transition-all shrink-0 cursor-pointer shadow-md';
-            fullBtn.title = 'Tersimpan di Mode Offline PWA (Klik untuk menghapus)';
+            fullBtn.title = 'Tersimpan di Mode Offline APK (Klik untuk menghapus)';
             fullBtn.innerHTML = '<i data-lucide="check-circle-2" class="w-5 h-5"></i>';
         } else {
             fullBtn.className = 'w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white flex items-center justify-center active:scale-90 transition-all shrink-0 cursor-pointer shadow-md';
-            fullBtn.title = 'Simpan ke Mode Offline PWA';
+            fullBtn.title = 'Simpan ke Mode Offline APK';
             fullBtn.innerHTML = '<i data-lucide="wifi-off" class="w-5 h-5"></i>';
         }
     }
@@ -615,7 +615,7 @@ var OfflineView = {
                         <h1 class="text-2xl font-black text-white tracking-tight drop-shadow-md">Offline Mode</h1>
                         <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${isOnline ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' : 'border-white/20 text-white/60 bg-white/5'}">${isOnline ? 'Online' : 'Offline'}</span>
                     </div>
-                    <p class="text-xs text-white/50 mt-0.5">PWA Storage & Saved Songs</p>
+                    <p class="text-xs text-white/50 mt-0.5">APK Storage & Saved Songs</p>
                 </div>
                 <div class="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-md">
                     <i data-lucide="wifi-off" class="w-4 h-4"></i>
@@ -698,6 +698,7 @@ var App={
         
         MP.init();FullPlayer.init();Artist.init();Album.init();Home.render();Search.render();
         if(typeof updateOG==='function') updateOG(null);
+        if(window.Auth && typeof Auth.init === 'function') Auth.init();
         App.loadSeasonalTheme();
         App.loadBroadcast();
         // Poll broadcast updates periodically every 60s

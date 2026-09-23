@@ -101,7 +101,18 @@ AU.addEventListener('pause',function(){if(!AU.ended){S.ip=false;UB();ST();sendPl
 AU.addEventListener('waiting',function(){S.il=true;UB();});
 AU.addEventListener('playing',function(){S.il=false;UB();sendPlaybackHeartbeat(true);});
 AU.addEventListener('ended',function(){ST();sendPlaybackHeartbeat(false);if(typeof handleTrackEnded==='function'&&handleTrackEnded())return;if(S.rm==='one'){AU.currentTime=0;AU.play().catch(function(){});}else if(S.autoNext){NX();}else{S.ip=false;UB();}});
-AU.addEventListener('error',function(){if(AU.src){S.il=false;S.ip=false;UB();sendPlaybackHeartbeat(false);}});
+AU.addEventListener('error', function(){
+    if(AU.src){
+        S.il=false;S.ip=false;UB();sendPlaybackHeartbeat(false);
+        if (S.ct) {
+            var vid = S.ct.videoId || S.ct.id;
+            if (vid && audioUrlCache[vid]) {
+                delete audioUrlCache[vid];
+                savePwaCaches();
+            }
+        }
+    }
+});
 
 function getClientDeviceType() {
     try {
@@ -1069,6 +1080,10 @@ async function fetchAudioAndPlay(track,resumeAt){
     var vid = track.videoId || track.id;
     try{
         var audioUrl = audioUrlCache[vid];
+        if (audioUrl && audioUrl.includes('googlevideo.com')) {
+            delete audioUrlCache[vid];
+            audioUrl = null;
+        }
         if (!audioUrl) {
             if (!navigator.onLine) {
                 S.il = false; S.ip = false; UB();
@@ -1080,8 +1095,10 @@ async function fetchAudioAndPlay(track,resumeAt){
             var d=await r.json();
             if(d&&d.status&&d.result&&d.result.download&&d.result.download.audio){
                 audioUrl = d.result.download.audio;
-                audioUrlCache[vid] = audioUrl;
-                savePwaCaches();
+                if (!audioUrl.includes('googlevideo.com')) {
+                    audioUrlCache[vid] = audioUrl;
+                    savePwaCaches();
+                }
             }
         }
         if(S.ct!==track)return;
@@ -2532,26 +2549,62 @@ function playQueueIndex(i){
     closeQueue();
 }
 
-// UNDUH LAGU (AUDIO)
+// UNDUH LAGU (AUDIO MP3)
 function downloadCurrentSong(){
     if(!S.ct)return;
-    showToast('Menyiapkan unduhan...');
-    var ytUrl=S.ct.ytUrl||('https://youtube.com/watch?v='+S.ct.videoId);
-    fetch(API.ytplay,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:ytUrl})})
-        .then(function(r){return r.json();})
-        .then(function(d){
-            if(d&&d.status&&d.result&&d.result.download&&d.result.download.audio){
-                var audioUrl=d.result.download.audio;
-                var a=document.createElement('a');
-                a.href='/api/proxy-audio?url='+encodeURIComponent(audioUrl);
-                a.download=(S.ct.title||'lagu').replace(/[^a-zA-Z0-9]/g,'_')+'.mp3';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                showToast('Unduhan dimulai!');
-            }else{
-                showToast('Gagal mengambil link unduhan');
-            }
-        })
-        .catch(function(){showToast('Gagal mengunduh lagu');});
+    var track = S.ct;
+    var rawTitle = (track.title || 'lagu').trim();
+    var cleanTitle = rawTitle.replace(/[^a-zA-Z0-9_\-\. ]/g, '_').replace(/\s+/g, '_');
+    var filename = (cleanTitle.toLowerCase().endsWith('.mp3') ? cleanTitle : cleanTitle + '.mp3');
+
+    showToast('Menyiapkan berkas MP3...');
+    var ytUrl = track.ytUrl || ('https://youtube.com/watch?v=' + track.videoId);
+
+    fetch(API.ytplay, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: ytUrl })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if(d && d.status && d.result && d.result.download && d.result.download.audio){
+            var audioUrl = d.result.download.audio;
+            var proxyDownloadUrl = '/api/proxy-audio?download=1&filename=' + encodeURIComponent(filename) + '&url=' + encodeURIComponent(audioUrl);
+
+            showToast('Mengunduh ' + filename + '...');
+            fetch(proxyDownloadUrl)
+                .then(function(res){
+                    if(!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.blob();
+                })
+                .then(function(blob){
+                    var blobUrl = window.URL.createObjectURL(new Blob([blob], { type: 'audio/mpeg' }));
+                    var a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = blobUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(function(){
+                        a.remove();
+                        window.URL.revokeObjectURL(blobUrl);
+                    }, 2000);
+                    showToast('Unduhan ' + filename + ' selesai!');
+                })
+                .catch(function(){
+                    var a = document.createElement('a');
+                    a.href = proxyDownloadUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    showToast('Unduhan dimulai!');
+                });
+        } else {
+            showToast('Gagal mengambil link unduhan');
+        }
+    })
+    .catch(function(){
+        showToast('Gagal mengunduh lagu');
+    });
 }

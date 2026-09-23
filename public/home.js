@@ -41,10 +41,10 @@ var Home = {
                     <h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">MusifyStar</h1>
                 </div>
                 <div class="flex items-center gap-2.5">
-                    <button onclick="App.switch('search')" class="w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg" title="Cari">
+                    <button onclick="App.switch('search')" class="w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg cursor-pointer" title="Cari">
                         <i data-lucide="search" class="w-5 h-5"></i>
                     </button>
-                    <button onclick="App.switch('dev')" class="w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg" title="Profil">
+                    <button onclick="Auth.toggleTopDropdown(this)" class="header-profile-btn w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg overflow-hidden cursor-pointer" title="Login & Akun">
                         <i data-lucide="user" class="w-5 h-5"></i>
                     </button>
                 </div>

@@ -46,7 +46,7 @@ var Profile = {
                 </span>
             </div>
             <p class="text-[#b3b3b3] text-sm mb-6">Nikmati Streaming Musik Dengan Lirik</p>
-            
+
             <div class="glass rounded-2xl p-5 max-w-sm mx-auto space-y-3 text-left mb-6">
                 <h3 class="text-white font-bold text-sm uppercase tracking-wider mb-2 flex items-center gap-2">
                     <i data-lucide="smartphone" class="w-4 h-4 text-rose-400"></i> Informasi & Aplikasi MusifyStar
@@ -129,10 +129,32 @@ var Profile = {
         lucide.createIcons();
     },
 
+    // Helper Sensored / Masked Email
+    maskEmail(email) {
+        if (!email || typeof email !== 'string' || !email.includes('@')) return email || '';
+        var parts = email.split('@');
+        var local = parts[0];
+        var domain = parts[1];
+        if (local.length <= 2) {
+            return local.charAt(0) + '*@' + domain;
+        } else if (local.length <= 4) {
+            return local.charAt(0) + '**' + local.charAt(local.length - 1) + '@' + domain;
+        } else {
+            var start = local.substring(0, 2);
+            var end = local.substring(local.length - 2);
+            var stars = '*'.repeat(Math.min(6, local.length - 4));
+            return start + stars + end + '@' + domain;
+        }
+    },
+
     // MODAL KIRIM MASUKAN (USER FEEDBACK FORM)
     openFeedbackModal() {
         var existing = gid('musifystar-feedback-modal');
         if (existing) existing.remove();
+
+        var u = (typeof Auth !== 'undefined' && Auth.currentUser) ? Auth.currentUser : null;
+        var defaultName = u ? (u.username || '') : '';
+        var defaultContact = u ? (u.email || '') : '';
 
         var modal = document.createElement('div');
         modal.id = 'musifystar-feedback-modal';
@@ -146,12 +168,15 @@ var Profile = {
             </button>
 
             <!-- Icon & Header -->
-            <div class="text-center mb-5 pt-1">
+            <div class="text-center mb-4 pt-1">
                 <div class="w-12 h-12 mx-auto mb-3 rounded-2xl bg-gradient-to-tr from-rose-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-rose-500/30">
                     <i data-lucide="message-square" class="w-6 h-6"></i>
                 </div>
                 <h2 class="text-lg font-black text-white tracking-tight">Kirim Pesan & Masukan</h2>
                 <p class="text-xs text-white/60 mt-1">Sampaikan saran, kritik, atau pesan untuk pengembang MusifyStar.</p>
+                ${u ? `<div class="mt-2 text-[11px] text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-xl inline-flex items-center gap-1.5 font-medium">
+                    <i data-lucide="user-check" class="w-3.5 h-3.5"></i> Terautentikasi sebagai <strong>${u.username}</strong>
+                </div>` : ''}
             </div>
 
             <!-- Error/Status Banner -->
@@ -163,18 +188,18 @@ var Profile = {
             <!-- Form -->
             <form onsubmit="Profile.submitFeedback(event)" class="space-y-3.5">
                 <div>
-                    <label class="block text-xs font-semibold text-white/70 mb-1">Nama <span class="text-rose-400">*</span></label>
-                    <input type="text" id="fb-name" required placeholder="Tuliskan nama Anda" class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors" />
+                    <label class="block text-xs font-semibold text-white/70 mb-1">Nama <span class="text-rose-400"></span></label>
+                    <input type="text" id="fb-name" required value="${defaultName}" placeholder="Tuliskan nama Anda" class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors" />
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-white/70 mb-1">Masukkan Pesan <span class="text-rose-400">*</span></label>
+                    <label class="block text-xs font-semibold text-white/70 mb-1">Masukkan Pesan <span class="text-rose-400"></span></label>
                     <textarea id="fb-message" required rows="4" placeholder="Tuliskan saran, kritik, atau pesan yang ingin disampaikan..." class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors resize-none"></textarea>
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-white/70 mb-1">Email / Nomer Jika Ingin Dibalas <span class="text-white/40 text-[11px]">(Opsional)</span></label>
-                    <input type="text" id="fb-contact" placeholder="+62 atau email@gmail.com" class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors" />
+                    <input type="text" id="fb-contact" value="${defaultContact}" placeholder="+62 atau email@gmail.com" class="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-rose-500 transition-colors" />
                 </div>
 
                 <button type="submit" id="fb-submit-btn" class="w-full btn-chrome font-bold py-3.5 rounded-xl active:scale-95 transition-all text-center flex items-center justify-center gap-2 mt-2 shadow-lg cursor-pointer">
@@ -383,10 +408,24 @@ var Profile = {
         }
 
         try {
+            var u = (typeof Auth !== 'undefined' && Auth.currentUser) ? Auth.currentUser : null;
+            var userLogged = !!u;
+            var username = u ? (u.username || '') : '';
+            var email = u ? (u.email || '') : '';
+            var userAvatar = u ? (u.avatar || '') : '';
+
             var res = await fetch('/api/feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, message, contact })
+                body: JSON.stringify({
+                    name: name,
+                    message: message,
+                    contact: contact,
+                    userLogged: userLogged,
+                    username: username,
+                    email: email,
+                    userAvatar: userAvatar
+                })
             });
             var data = await res.json();
 
@@ -782,6 +821,15 @@ var Profile = {
                         <i data-lucide="shield-check" class="w-4 h-4"></i>
                         <span>Keamanan & 2FA</span>
                     </button>
+                    <button id="admin-tab-btn-users" onclick="Profile.setAdminTab('users')" class="px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer bg-white/5 hover:bg-white/10 text-white/70 hover:text-white whitespace-nowrap">
+                        <i data-lucide="history" class="w-4 h-4 text-sky-400"></i>
+                        <span>Log Login Pengguna</span>
+                    </button>
+                    <button id="admin-tab-btn-bans" onclick="Profile.setAdminTab('bans')" class="px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer bg-white/5 hover:bg-white/10 text-white/70 hover:text-white whitespace-nowrap">
+                        <i data-lucide="shield-alert" class="w-4 h-4 text-rose-400"></i>
+                        <span>Atur Sanksi & Ban</span>
+                        <span id="admin-banned-count-badge" class="hidden text-[10px] bg-rose-500 text-white px-1.5 py-0.2 rounded-full font-bold">0</span>
+                    </button>
                 </div>
 
                 <div id="admin-live-ticker" class="hidden sm:flex items-center gap-2 text-[11px] text-white/50 shrink-0">
@@ -840,6 +888,20 @@ var Profile = {
                         <!-- Populated by renderAdminSecurityTab -->
                     </div>
                 </div>
+
+                <!-- TAB 7: LOG LOGIN PENGGUNA VIEW -->
+                <div id="admin-view-users" class="hidden space-y-4">
+                    <div id="admin-users-container">
+                        <!-- Populated by loadAdminUsersList -->
+                    </div>
+                </div>
+
+                <!-- TAB 8: ATUR SANKSI & BLOKIR VIEW -->
+                <div id="admin-view-bans" class="hidden space-y-4">
+                    <div id="admin-bans-container">
+                        <!-- Populated by loadAdminBansList -->
+                    </div>
+                </div>
             </div>
 
             <!-- Footer with Logout -->
@@ -876,12 +938,16 @@ var Profile = {
         var btnVersion = gid('admin-tab-btn-version');
         var btnFeedback = gid('admin-tab-btn-feedback');
         var btnSecurity = gid('admin-tab-btn-security');
+        var btnUsers = gid('admin-tab-btn-users');
+        var btnBans = gid('admin-tab-btn-bans');
         var viewAnalytics = gid('admin-view-analytics');
         var viewTheme = gid('admin-view-theme');
         var viewBroadcast = gid('admin-view-broadcast');
         var viewVersion = gid('admin-view-version');
         var viewFeedback = gid('admin-view-feedback');
         var viewSecurity = gid('admin-view-security');
+        var viewUsers = gid('admin-view-users');
+        var viewBans = gid('admin-view-bans');
 
         var activeBtnClass = 'px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer bg-gradient-to-r from-rose-500 to-purple-600 text-white shadow-md shadow-rose-500/20 whitespace-nowrap';
         var inactiveBtnClass = 'px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer bg-white/5 hover:bg-white/10 text-white/70 hover:text-white whitespace-nowrap';
@@ -892,6 +958,8 @@ var Profile = {
         if (btnVersion) btnVersion.className = tab === 'version' ? activeBtnClass : inactiveBtnClass;
         if (btnFeedback) btnFeedback.className = tab === 'feedback' ? activeBtnClass : inactiveBtnClass;
         if (btnSecurity) btnSecurity.className = tab === 'security' ? activeBtnClass : inactiveBtnClass;
+        if (btnUsers) btnUsers.className = tab === 'users' ? activeBtnClass : inactiveBtnClass;
+        if (btnBans) btnBans.className = tab === 'bans' ? activeBtnClass : inactiveBtnClass;
 
         if (viewAnalytics) viewAnalytics.classList.toggle('hidden', tab !== 'analytics');
         if (viewTheme) viewTheme.classList.toggle('hidden', tab !== 'theme');
@@ -899,6 +967,8 @@ var Profile = {
         if (viewVersion) viewVersion.classList.toggle('hidden', tab !== 'version');
         if (viewFeedback) viewFeedback.classList.toggle('hidden', tab !== 'feedback');
         if (viewSecurity) viewSecurity.classList.toggle('hidden', tab !== 'security');
+        if (viewUsers) viewUsers.classList.toggle('hidden', tab !== 'users');
+        if (viewBans) viewBans.classList.toggle('hidden', tab !== 'bans');
 
         if (tab === 'analytics') {
             Profile.loadAdminAnalytics();
@@ -912,6 +982,10 @@ var Profile = {
             Profile.loadAdminFeedbacks();
         } else if (tab === 'security') {
             Profile.renderAdminSecurityTab();
+        } else if (tab === 'users') {
+            Profile.loadAdminUsersList();
+        } else if (tab === 'bans') {
+            Profile.loadAdminBansList();
         }
     },
 
@@ -936,6 +1010,10 @@ var Profile = {
             Profile.renderAdminVersionTab();
         } else if (Profile.adminActiveTab === 'security') {
             Profile.renderAdminSecurityTab();
+        } else if (Profile.adminActiveTab === 'users') {
+            Profile.loadAdminUsersList();
+        } else if (Profile.adminActiveTab === 'bans') {
+            Profile.loadAdminBansList();
         } else {
             Profile.loadAdminAnalytics(false);
         }
@@ -2861,6 +2939,14 @@ var Profile = {
                     dateStr = item.createdAt;
                 }
 
+                // Detect if user was logged in
+                var isLogged = !!(item.userLogged || item.username || (item.email && item.email.includes('@')));
+                var rawEmail = item.email || (item.contact && item.contact.includes('@') ? item.contact : '');
+                var sensoredEmail = Profile.maskEmail(rawEmail);
+                var dispName = item.username || item.name || 'Pengguna';
+                var isVerified = (rawEmail === 'jrnabil570@gmail.com') || (item.contact === 'jrnabil570@gmail.com');
+                var avatarUrl = item.userAvatar || (dispName ? ('https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(dispName)) : '/logo.png');
+
                 // Detect if contact is phone or email for direct quick-actions
                 var contact = item.contact || '-';
                 var contactAction = '';
@@ -2875,25 +2961,50 @@ var Profile = {
                     }
                 }
 
-                html += `
-                <div class="p-4 rounded-2xl ${item.isRead ? 'bg-white/[0.02] border-white/5' : 'bg-gradient-to-r from-rose-500/[0.06] to-purple-500/[0.03] border-rose-500/30'} border transition-all flex flex-col gap-3 relative group">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="flex items-center gap-2.5 flex-wrap">
-                            <span class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500/30 to-purple-500/30 text-rose-300 font-bold text-xs flex items-center justify-center shrink-0">
-                                <i data-lucide="user" class="w-4 h-4"></i>
-                            </span>
-                            <div>
-                                <h4 class="text-sm font-bold text-white flex items-center gap-2">
-                                    ${item.name}
-                                    ${!item.isRead ? '<span class="text-[9px] bg-rose-500 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase">Baru</span>' : ''}
-                                </h4>
-                                <span class="text-[11px] text-white/50 flex items-center gap-1">
+                // Sender Info Block (Logged-In vs Guest/No Login)
+                var senderHeaderHtml = '';
+                if (isLogged) {
+                    senderHeaderHtml = `
+                    <div class="flex items-center gap-3">
+                        <img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover bg-black/50 border border-white/20 shrink-0 shadow-md" onerror="this.src='/logo.png'" />
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h4 class="text-sm font-bold text-white inline-flex items-center leading-tight"><span>${dispName}</span>${isVerified ? (typeof Auth !== 'undefined' ? `<span class="global-verified-badge-container">${Auth.getVerifiedBadgeHTML()}</span>` : '') : ''}</h4>
+                                ${!item.isRead ? '<span class="text-[9px] bg-rose-500 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase">Baru</span>' : ''}
+                            </div>
+                            <div class="flex items-center gap-2 text-[11px] mt-0.5 flex-wrap">
+                                <span class="text-sky-300/90 font-mono font-medium">${sensoredEmail || 'Terautentikasi'}</span>
+                                <span class="text-white/30">&bull;</span>
+                                <span class="text-white/50 flex items-center gap-1">
                                     <i data-lucide="clock" class="w-3 h-3"></i> ${dateStr}
                                 </span>
                             </div>
                         </div>
+                    </div>`;
+                } else {
+                    senderHeaderHtml = `
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <span class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500/30 to-purple-500/30 text-rose-300 font-bold text-xs flex items-center justify-center shrink-0">
+                            <i data-lucide="user" class="w-4 h-4"></i>
+                        </span>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                                ${item.name}
+                                ${!item.isRead ? '<span class="text-[9px] bg-rose-500 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase">Baru</span>' : ''}
+                            </h4>
+                            <span class="text-[11px] text-white/50 flex items-center gap-1">
+                                <i data-lucide="clock" class="w-3 h-3"></i> ${dateStr}
+                            </span>
+                        </div>
+                    </div>`;
+                }
 
-                        <div class="flex items-center gap-1.5">
+                html += `
+                <div class="p-4 rounded-2xl ${item.isRead ? 'bg-white/[0.02] border-white/5' : 'bg-gradient-to-r from-rose-500/[0.06] to-purple-500/[0.03] border-rose-500/30'} border transition-all flex flex-col gap-3 relative group">
+                    <div class="flex items-start justify-between gap-3">
+                        ${senderHeaderHtml}
+
+                        <div class="flex items-center gap-1.5 shrink-0">
                             <button onclick="Profile.toggleFeedbackRead('${item.id}', ${!item.isRead})" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition active:scale-90" title="${item.isRead ? 'Tandai Belum Dibaca' : 'Tandai Sudah Dibaca'}">
                                 <i data-lucide="${item.isRead ? 'mail' : 'mail-check'}" class="w-4 h-4"></i>
                             </button>
@@ -3272,7 +3383,1335 @@ var Profile = {
         }
     },
 
+    // ==========================================
+    // LOG LOGIN & ATUR SANKSI / BLOKIR TAB SEPARATION
+    // ==========================================
+    cachedAdminUsers: [],
 
+    formatIpDisplay(ip) {
+        if (!ip) return '<span class="font-mono text-sky-300 font-bold">127.0.0.1</span>';
+        var clean = String(ip).trim();
+        if (clean.startsWith('::ffff:')) {
+            clean = clean.replace('::ffff:', '');
+        }
+        var isIpv6 = clean.includes(':');
+        var badgeText = isIpv6 ? 'IPv6 Seluler/ISP' : 'IPv4';
+        var badgeBg = isIpv6 ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+
+        return `<div class="inline-flex items-center gap-1.5 flex-wrap">
+            <span onclick="navigator.clipboard.writeText('${clean}'); if(typeof showToast==='function') showToast('Alamat IP disalin: ${clean}');" title="Klik untuk Salin IP" class="font-mono text-sky-300 font-bold break-all cursor-pointer hover:underline hover:text-sky-200 transition-colors">${clean}</span>
+            <span class="text-[9px] px-1.5 py-0.5 rounded ${badgeBg} border font-sans font-semibold shrink-0 cursor-help" title="${isIpv6 ? 'Alamat IPv6 diterbitkan otomatis oleh Operator Seluler / Provider ISP' : 'Alamat IPv4 Format Standar'}">${badgeText}</span>
+        </div>`;
+    },
+
+    // 1. LOG LOGIN PENGGUNA TAB (TAB 7)
+    async loadAdminUsersList() {
+        var container = gid('admin-users-container');
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!container || !token) return;
+
+        container.innerHTML = `
+        <div class="text-center py-12 text-white/50 space-y-2">
+            <i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto text-sky-400"></i>
+            <p class="text-xs font-semibold">Memuat log login & riwayat IP pengguna...</p>
+        </div>`;
+        if (window.lucide) lucide.createIcons();
+
+        try {
+            var res = await fetch('/api/user-auth?action=admin_get_users', {
+                headers: { 'x-admin-token': token }
+            });
+            var data = await res.json();
+
+            if (!data.status || !Array.isArray(data.users)) {
+                container.innerHTML = `
+                <div class="text-center py-12 text-red-400 space-y-2">
+                    <i data-lucide="alert-triangle" class="w-8 h-8 mx-auto"></i>
+                    <p class="text-xs font-semibold">${data.message || 'Gagal memuat data pengguna'}</p>
+                </div>`;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+
+            var users = data.users;
+            Profile.cachedAdminUsers = users;
+
+            if (users.length === 0) {
+                container.innerHTML = `
+                <div class="p-8 text-center rounded-2xl bg-white/[0.03] border border-white/10 text-white/50 text-xs space-y-2">
+                    <i data-lucide="users" class="w-8 h-8 mx-auto text-white/30"></i>
+                    <p class="font-bold text-white/80">Belum Ada Pengguna Terdaftar</p>
+                    <p class="text-[11px] text-white/40">Setiap pengguna yang mendaftar atau login di aplikasi MusifyStar akan terekam otomatis di sini.</p>
+                </div>`;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+
+            var html = `
+            <div class="space-y-4">
+                <!-- Header Info Card -->
+                <div class="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-sky-500/10 via-indigo-500/10 to-purple-500/10 border border-sky-500/20 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-300 flex items-center justify-center shrink-0 border border-sky-500/30">
+                            <i data-lucide="history" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm sm:text-base font-bold text-white tracking-tight">Log Login & Alamat IP Pengguna</h3>
+                            <p class="text-xs text-white/60">Lihat IP Address (IPv4 / IPv6), tanggal pendaftaran, password disensor, dan riwayat login seluruh pengguna</p>
+                        </div>
+                    </div>
+                    <div class="px-3 py-1.5 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-300 text-xs font-bold shrink-0 self-start sm:self-auto">
+                        Total: ${users.length} Pengguna
+                    </div>
+                </div>
+
+                <!-- Live Search Input Bar -->
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 text-white/40 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                    <input id="admin-user-search-input" type="text" oninput="Profile.filterAdminUsersList()" placeholder="Cari berdasarkan Username, Email, atau Alamat IP (IPv4 / IPv6)..." class="w-full bg-white/5 border border-white/10 focus:border-sky-500 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-white/40 focus:outline-none transition-all shadow-inner">
+                    <button onclick="var el=gid('admin-user-search-input'); if(el) el.value=''; Profile.filterAdminUsersList();" class="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors cursor-pointer" title="Hapus Pencarian">
+                        <i data-lucide="x-circle" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- User Log Cards List Container -->
+                <div id="admin-users-cards-list" class="space-y-3">
+                    ${Profile.renderUserLogCardsHtml(users)}
+                </div>
+            </div>`;
+
+            container.innerHTML = html;
+
+            if (window.lucide) lucide.createIcons();
+            if (typeof Auth !== 'undefined' && typeof Auth.syncVerifiedBadges === 'function') {
+                Auth.syncVerifiedBadges();
+            }
+        } catch (e) {
+            container.innerHTML = `
+            <div class="text-center py-12 text-red-400 space-y-2">
+                <i data-lucide="wifi-off" class="w-8 h-8 mx-auto"></i>
+                <p class="text-xs font-semibold">Terjadi kesalahan saat memuat data pengguna: ${e.message}</p>
+            </div>`;
+            if (window.lucide) lucide.createIcons();
+        }
+    },
+
+    renderUserLogCardsHtml(users) {
+        if (!users || users.length === 0) return '';
+
+        return users.map(function(u) {
+            var regDateFormatted = Profile.formatUserLocalDateTime(u.createdAt);
+            var lastLoginFormatted = Profile.formatUserLocalDateTime(u.lastLoginAt);
+
+            var logsCount = (u.loginLogs || []).length;
+            var logsHtml = (u.loginLogs || []).map(function(log, idx) {
+                return `
+                <div class="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/5 text-[11px] gap-2 flex-wrap">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono font-bold text-sky-400">#${idx+1}</span>
+                        <div class="bg-black/40 px-2 py-0.5 rounded border border-white/10">
+                            ${Profile.formatIpDisplay(log.ip)}
+                        </div>
+                    </div>
+                    <span class="text-white/50 text-[10px]">${Profile.formatUserLocalDateTime(log.timestamp)}</span>
+                </div>`;
+            }).join('');
+
+            return `
+            <div class="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-all space-y-4 shadow-lg">
+                <!-- User Profile Header -->
+                <div class="flex items-center justify-between gap-3 pb-3 border-b border-white/10">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <img src="${u.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + u.username}" class="w-11 h-11 rounded-2xl object-cover bg-black/40 border border-white/15 shrink-0 shadow-md" alt="${u.username}">
+                        <div class="min-w-0">
+                            <h4 class="text-sm font-bold text-white truncate flex items-center gap-1.5">
+                                <span>${u.username}</span>
+                                <span class="global-verified-badge-container inline-flex items-center"></span>
+                            </h4>
+                            <p class="text-xs text-white/60 truncate flex items-center gap-1 mt-0.5">
+                                <i data-lucide="mail" class="w-3 h-3 text-sky-400 shrink-0"></i>
+                                <span>${u.email}</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Details Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+                    <div class="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-1">
+                        <span class="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Alamat IP Terakhir</span>
+                        <div class="mt-1">
+                            ${Profile.formatIpDisplay(u.lastIp)}
+                        </div>
+                        <div class="mt-1.5 pt-1.5 border-t border-white/10 text-[11px] font-mono text-amber-300/90 truncate flex items-center gap-1">
+                            <i data-lucide="fingerprint" class="w-3 h-3 text-amber-400 shrink-0"></i>
+                            <span onclick="navigator.clipboard.writeText('${u.id}'); if(typeof showToast==='function') showToast('ID disalin: ${u.id}');" class="cursor-pointer hover:underline" title="Klik untuk Salin User ID">ID: ${u.id}</span>
+                        </div>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-0.5">
+                        <span class="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Password diSensor</span>
+                        <span class="font-mono text-xs font-bold text-amber-300 flex items-center gap-1 mt-1">
+                            <i data-lucide="eye-off" class="w-3 h-3 text-amber-400"></i> ${u.maskedPassword || '••••••••'}
+                        </span>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-0.5">
+                        <span class="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Terdaftar Tanggal</span>
+                        <span class="text-xs text-white/80 font-medium truncate block mt-1">${regDateFormatted}</span>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-0.5">
+                        <span class="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Terakhir Login</span>
+                        <span class="text-xs text-emerald-300 font-medium truncate block mt-1">${lastLoginFormatted}</span>
+                    </div>
+                </div>
+
+                <!-- Collapsible Login Logs -->
+                <details class="group/logs">
+                    <summary class="text-xs font-bold text-white/70 hover:text-white cursor-pointer select-none flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 transition-colors">
+                        <span class="flex items-center gap-1.5">
+                            <i data-lucide="history" class="w-3.5 h-3.5 text-sky-400"></i>
+                            <span>Riwayat Sesi Login (${logsCount} Sesi Terekam)</span>
+                        </span>
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-white/40 group-open/logs:rotate-180 transition-transform"></i>
+                    </summary>
+                    <div class="pt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        ${logsHtml || '<p class="text-[11px] text-white/40 p-2">Belum ada riwayat log login tambahan.</p>'}
+                    </div>
+                </details>
+            </div>`;
+        }).join('');
+    },
+
+    filterAdminUsersList() {
+        var input = gid('admin-user-search-input');
+        var query = (input ? input.value : '').trim().toLowerCase();
+        var users = Profile.cachedAdminUsers || [];
+        var cardsContainer = gid('admin-users-cards-list');
+        if (!cardsContainer) return;
+
+        var filtered = users.filter(function(u) {
+            if (!query) return true;
+            var uname = (u.username || '').toLowerCase();
+            var email = (u.email || '').toLowerCase();
+            var lastIp = (u.lastIp || '').toLowerCase();
+            var logsMatch = (u.loginLogs || []).some(function(l) {
+                return (l.ip || '').toLowerCase().includes(query);
+            });
+            return uname.includes(query) || email.includes(query) || lastIp.includes(query) || logsMatch;
+        });
+
+        if (filtered.length === 0) {
+            cardsContainer.innerHTML = `
+            <div class="p-8 text-center rounded-2xl bg-white/[0.03] border border-white/10 text-white/50 text-xs space-y-2">
+                <i data-lucide="search-x" class="w-8 h-8 mx-auto text-white/30"></i>
+                <p class="font-bold text-white/80">Pengguna Tidak Ditemukan</p>
+                <p class="text-[11px] text-white/40">Tidak ada pengguna yang cocok dengan kata kunci "${query}".</p>
+            </div>`;
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        cardsContainer.innerHTML = Profile.renderUserLogCardsHtml(filtered);
+        if (window.lucide) lucide.createIcons();
+        if (typeof Auth !== 'undefined' && typeof Auth.syncVerifiedBadges === 'function') {
+            Auth.syncVerifiedBadges();
+        }
+    },
+
+    // 2. ATUR SANKSI & BLOKIR TAB (TAB 8)
+    async loadAdminBansList() {
+        var container = gid('admin-bans-container');
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!container || !token) return;
+
+        container.innerHTML = `
+        <div class="text-center py-12 text-white/50 space-y-2">
+            <i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto text-rose-400"></i>
+            <p class="text-xs font-semibold">Memuat data sanksi & status ban pengguna...</p>
+        </div>`;
+        if (window.lucide) lucide.createIcons();
+
+        try {
+            var res = await fetch('/api/user-auth?action=admin_get_users', {
+                headers: { 'x-admin-token': token }
+            });
+            var data = await res.json();
+
+            if (!data.status || !Array.isArray(data.users)) {
+                container.innerHTML = `
+                <div class="text-center py-12 text-red-400 space-y-2">
+                    <i data-lucide="alert-triangle" class="w-8 h-8 mx-auto"></i>
+                    <p class="text-xs font-semibold">${data.message || 'Gagal memuat data sanksi'}</p>
+                </div>`;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+
+            var users = data.users;
+            Profile.cachedAdminUsers = users;
+
+            // Compute counts
+            var activeCount = 0;
+            var tempBanCount = 0;
+            var permBanCount = 0;
+            var warnCount = 0;
+
+            users.forEach(function(u) {
+                var b = u.banStatus || { isBanned: false, isWarning: false, banType: 'none' };
+                if (b.isBanned) {
+                    if (u.banType === 'permanent') permBanCount++;
+                    else tempBanCount++;
+                } else if (b.isWarning || u.banType === 'warning') {
+                    warnCount++;
+                } else {
+                    activeCount++;
+                }
+            });
+
+            var totalSanctioned = tempBanCount + permBanCount + warnCount;
+            var badgeEl = gid('admin-banned-count-badge');
+            if (badgeEl) {
+                if (totalSanctioned > 0) {
+                    badgeEl.innerText = totalSanctioned;
+                    badgeEl.classList.remove('hidden');
+                } else {
+                    badgeEl.classList.add('hidden');
+                }
+            }
+
+            // Also fetch Banned IPs List
+            var bannedIpsList = [];
+            try {
+                var resIps = await fetch('/api/user-auth?action=admin_get_banned_ips', {
+                    headers: { 'x-admin-token': token }
+                });
+                var dataIps = await resIps.json();
+                if (dataIps.status && Array.isArray(dataIps.bannedIps)) {
+                    bannedIpsList = dataIps.bannedIps;
+                }
+            } catch(e){}
+
+            // Build Banned IPs Cards HTML
+            var ipListHtml = '';
+            if (bannedIpsList.length === 0) {
+                ipListHtml = `<div class="p-4 text-center rounded-2xl bg-white/[0.02] border border-white/5 text-white/40 text-xs">Belum ada Alamat IP yang masuk dalam daftar hitam (blacklist IP khusus).</div>`;
+            } else {
+                ipListHtml = bannedIpsList.map(function(item) {
+                    var expText = item.banExpiresAt ? new Date(item.banExpiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Permanen';
+                    return `
+                    <div class="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-3 text-xs shadow-lg">
+                        <div class="space-y-1">
+                            <div class="font-mono font-bold text-red-200 flex items-center gap-2 flex-wrap">
+                                <i data-lucide="wifi-off" class="w-4 h-4 text-red-400"></i>
+                                <span class="text-sm">${item.ip}</span>
+                                <span class="text-[9px] px-2 py-0.5 rounded-full bg-red-500/30 border border-red-500/50 text-red-200 uppercase font-sans font-black">${item.banType === 'permanent' ? 'Blacklist Permanen' : 'DiBlacklist'}</span>
+                            </div>
+                            <p class="text-[11px] text-white/80 font-medium">${item.banReason}</p>
+                            <span class="text-[10px] text-white/40 font-mono block">Masa Berlaku: ${expText} ${item.banDurationText ? '(' + item.banDurationText + ')' : ''}</span>
+                        </div>
+                        <button onclick="Profile.quickUnbanIp('${item.ip}')" class="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer shadow-md">
+                            <i data-lucide="unlock" class="w-3.5 h-3.5 text-emerald-400"></i>
+                            <span>Buka IP</span>
+                        </button>
+                    </div>`;
+                }).join('');
+            }
+
+            var html = `
+            <div class="space-y-5">
+                <!-- Header Info Card -->
+                <div class="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-rose-500/10 via-amber-500/10 to-purple-500/10 border border-rose-500/20 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center shrink-0 border border-rose-500/30">
+                            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm sm:text-base font-bold text-white tracking-tight">Form Atur Sanksi & Ban Pengguna</h3>
+                            <p class="text-xs text-white/60">Pengelolaan Ban Akun (Username/Email/ID) dan Ban IP Address (Blacklist Jaringan) secara terpisah</p>
+                        </div>
+                    </div>
+                    <div class="px-3 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold shrink-0 self-start sm:self-auto flex items-center gap-1.5">
+                        <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+                        <span>${totalSanctioned} Dalam Sanksi</span>
+                    </div>
+                </div>
+
+                <!-- Stats Counters Pills -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] text-white/50 block font-medium">Aktif Bebas Sanksi</span>
+                            <span class="text-base font-black text-emerald-400">${activeCount}</span>
+                        </div>
+                        <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400/50"></i>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] text-white/50 block font-medium">Banned</span>
+                            <span class="text-base font-black text-amber-400">${tempBanCount}</span>
+                        </div>
+                        <i data-lucide="clock" class="w-5 h-5 text-amber-400/50"></i>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] text-white/50 block font-medium">Banned Permanen</span>
+                            <span class="text-base font-black text-rose-400">${permBanCount}</span>
+                        </div>
+                        <i data-lucide="ban" class="w-5 h-5 text-rose-400/50"></i>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] text-white/50 block font-medium">Blacklist IP Aktif</span>
+                            <span class="text-base font-black text-red-400">${bannedIpsList.length}</span>
+                        </div>
+                        <i data-lucide="wifi-off" class="w-5 h-5 text-red-400/50"></i>
+                    </div>
+                </div>
+
+                <!-- MAIN FORM CONTAINER -->
+                <div class="p-5 rounded-2xl bg-black/40 border border-white/10 space-y-4 shadow-xl">
+                    <div class="border-b border-white/10 pb-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                            <i data-lucide="user-check" class="w-4 h-4"></i>
+                            <span>1. Target Pengguna Atau IP Address (Isi Salah Satu Saja)</span>
+                        </h4>
+                        <p class="text-[11px] text-white/50 mt-0.5">Isi User ID / Username / Email untuk Ban Akun spesifik. Isi Alamat IP saja untuk Blacklist IP Jaringan terpisah.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <!-- Field 0: User ID -->
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-white/80 flex items-center gap-1">
+                                <i data-lucide="fingerprint" class="w-3.5 h-3.5 text-amber-400"></i> User ID
+                            </label>
+                            <input id="admin-ban-form-userid" type="text" oninput="Profile.onBanFormInput('userid')" placeholder="Contoh: u_172..." class="w-full bg-white/5 border border-white/10 focus:border-amber-500 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all font-mono">
+                        </div>
+
+                        <!-- Field 1: Username -->
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-white/80 flex items-center gap-1">
+                                <i data-lucide="user" class="w-3.5 h-3.5 text-sky-400"></i> Username
+                            </label>
+                            <input id="admin-ban-form-username" type="text" oninput="Profile.onBanFormInput('username')" placeholder="Contoh: nabil" class="w-full bg-white/5 border border-white/10 focus:border-sky-500 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all">
+                        </div>
+
+                        <!-- Field 2: Email -->
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-white/80 flex items-center gap-1">
+                                <i data-lucide="mail" class="w-3.5 h-3.5 text-purple-400"></i> Email
+                            </label>
+                            <input id="admin-ban-form-email" type="email" oninput="Profile.onBanFormInput('email')" placeholder="Contoh: nabil@gmail.com" class="w-full bg-white/5 border border-white/10 focus:border-purple-500 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all">
+                        </div>
+
+                        <!-- Field 3: IP Address -->
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-white/80 flex items-center gap-1">
+                                <i data-lucide="globe" class="w-3.5 h-3.5 text-red-400"></i> Alamat IP Jaringan
+                            </label>
+                            <input id="admin-ban-form-ip" type="text" oninput="Profile.onBanFormInput('ip')" placeholder="Contoh: 114.10... / 2402:..." class="w-full bg-white/5 border border-white/10 focus:border-red-500 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all font-mono">
+                        </div>
+                    </div>
+
+                    <!-- Helper Active Target Status Bar -->
+                    <div id="admin-ban-form-target-status" class="hidden text-[11px] p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-300 font-semibold flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4 shrink-0"></i>
+                        <span id="admin-ban-form-target-status-text">Target dipilih.</span>
+                    </div>
+
+                    <div class="border-t border-white/10 pt-3 space-y-4">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                            <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                            <span>2. Atur Jenis Sanksi & Pesan Alasan</span>
+                        </h4>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <!-- Jenis Sanksi Select -->
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-bold text-white/80">Pilih Jenis Sanksi / Status Akun</label>
+                                <select id="admin-ban-form-type" onchange="Profile.toggleBanFormDurationInput()" class="w-full bg-black/60 border border-white/15 focus:border-rose-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all cursor-pointer font-medium">
+                                    <option value="none">Buka Banned</option>
+                                    <option value="permanent" selected>Banned Permanen</option>
+                                    <option value="temporary">Banned Durasi Waktu</option>
+                                    <option value="warning">Peringatan Saja</option>
+                                </select>
+                            </div>
+
+                            <!-- Durasi Blokir Sementara Select -->
+                            <div id="admin-ban-form-duration-container" class="space-y-1.5 hidden">
+                                <label class="text-xs font-bold text-white/80">Pilih Durasi Banned</label>
+                                <select id="admin-ban-form-duration" class="w-full bg-black/60 border border-white/15 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all cursor-pointer font-medium">
+                                    <option value="1">1Hari 24Jam</option>
+                                    <option value="5" selected>5Hari</option>
+                                    <option value="7">7Hari</option>
+                                    <option value="10">10Hari</option>
+                                    <option value="20">20Hari</option>
+                                    <option value="30">1Bulan 30Hari</option>
+                                    <option value="60">2Bulan 60Hari</option>
+                                    <option value="365">1Tahun 365Hari</option>
+                                    <option value="730">2Tahun 730Hari</option>
+                                    <option value="1095">3Tahun 1095Hari</option>
+                                    <option value="1460">4Tahun 1460Hari</option>
+                                    <option value="1825">5Tahun 1825Hari</option>
+                                    <option value="3650">10Tahun 3650Hari</option>
+                                    <option value="10950">30Tahun 10950Hari</option>
+                                    <option value="14600">40Tahun 14600Hari</option>
+                                    <option value="18250">50Tahun 18250Hari</option>
+                                    <option value="32850">90Tahun 32850Hari</option>
+                                    <option value="36500">100Tahun 36500Hari</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Teks Pesan Peringatan / Alasan Blokir -->
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-white/80">Teks Pesan Peringatan / Alasan Banned Ditampilkan ke Pengguna</label>
+                            <textarea id="admin-ban-form-reason" rows="3" placeholder="Tulis alasan atau pesan peringatan yang akan muncul di layar pengguna (misal: Akun/IP Anda dibanned karena pelanggaran ketentuan)..." class="w-full bg-black/60 border border-white/15 focus:border-rose-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all leading-relaxed font-sans">Akun atau Alamat IP Anda telah dibanned oleh administrator karena adanya pelanggaran ketentuan.</textarea>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex flex-col sm:flex-row gap-2 pt-2">
+                            <button id="admin-submit-ban-btn" onclick="Profile.submitBanForm(false)" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-500/25 active:scale-95 transition-all cursor-pointer">
+                                <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                                <span>Terapkan Sanksi Banned</span>
+                            </button>
+
+                            <button id="admin-submit-unban-btn" onclick="Profile.submitBanForm(true)" class="py-3 px-4 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
+                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+                                <span>Buka Banned / Unban Target</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: BLACKLIST IP ADDRESS LIST -->
+                <div class="p-5 rounded-2xl bg-black/40 border border-red-500/20 space-y-3.5 shadow-xl">
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-red-400 flex items-center gap-2">
+                            <i data-lucide="wifi-off" class="w-4 h-4"></i>
+                            <span>Daftar Blacklist IP Address (${bannedIpsList.length})</span>
+                        </h4>
+                        <span class="text-[10px] text-white/40">Sistem memblokir jaringan dari IP ini</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        ${ipListHtml}
+                    </div>
+                </div>
+
+                <!-- SECTION 3: USERS LIST & SEARCH -->
+                <div class="p-5 rounded-2xl bg-black/40 border border-white/10 space-y-3.5 shadow-xl">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
+                            <i data-lucide="users" class="w-4 h-4"></i>
+                            <span>Daftar Akun Pengguna & Status Sanksi (${users.length})</span>
+                        </h4>
+                        <div class="relative w-full sm:w-64">
+                            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-white/40"></i>
+                            <input id="admin-ban-search-input" type="text" oninput="Profile.filterAdminBansList()" placeholder="Cari username, email, IP..." class="w-full bg-white/5 border border-white/10 focus:border-sky-500 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none transition-all">
+                        </div>
+                    </div>
+
+                    <div id="admin-bans-cards-list" class="space-y-3">
+                        ${Profile.renderUserBanCardsHtml(users)}
+                    </div>
+                </div>
+            </div>`;
+
+            container.innerHTML = html;
+
+            if (window.lucide) lucide.createIcons();
+            if (typeof Auth !== 'undefined' && typeof Auth.syncVerifiedBadges === 'function') {
+                Auth.syncVerifiedBadges();
+            }
+        } catch (e) {
+            container.innerHTML = `
+            <div class="text-center py-12 text-red-400 space-y-2">
+                <i data-lucide="wifi-off" class="w-8 h-8 mx-auto"></i>
+                <p class="text-xs font-semibold">Terjadi kesalahan saat memuat data sanksi: ${e.message}</p>
+            </div>`;
+            if (window.lucide) lucide.createIcons();
+        }
+    },
+
+    onBanFormInput(type) {
+        var idEl = gid('admin-ban-form-userid');
+        var uEl = gid('admin-ban-form-username');
+        var eEl = gid('admin-ban-form-email');
+        var ipEl = gid('admin-ban-form-ip');
+        var statusBox = gid('admin-ban-form-target-status');
+        var statusText = gid('admin-ban-form-target-status-text');
+
+        if (type === 'userid') {
+            var idVal = idEl ? idEl.value.trim() : '';
+            if (idVal) {
+                if (uEl) uEl.value = '';
+                if (eEl) eEl.value = '';
+                if (ipEl) ipEl.value = '';
+                if (statusBox && statusText) {
+                    statusText.innerText = '✓ Target User ID terisi: "' + idVal + '" Username, Email & IP tidak perlu diisi';
+                    statusBox.classList.remove('hidden');
+                }
+            } else {
+                if (statusBox) statusBox.classList.add('hidden');
+            }
+        } else if (type === 'username') {
+            var uVal = uEl ? uEl.value.trim() : '';
+            if (uVal) {
+                if (idEl) idEl.value = '';
+                if (eEl) eEl.value = '';
+                if (ipEl) ipEl.value = '';
+                if (statusBox && statusText) {
+                    statusText.innerText = '✓ Target Username terisi: "@' + uVal + '" User ID, Email & IP tidak perlu diisi';
+                    statusBox.classList.remove('hidden');
+                }
+            } else {
+                if (statusBox) statusBox.classList.add('hidden');
+            }
+        } else if (type === 'email') {
+            var eVal = eEl ? eEl.value.trim() : '';
+            if (eVal) {
+                if (idEl) idEl.value = '';
+                if (uEl) uEl.value = '';
+                if (ipEl) ipEl.value = '';
+                if (statusBox && statusText) {
+                    statusText.innerText = '✓ Target Email terisi: "' + eVal + '" User ID, Username & IP tidak perlu diisi';
+                    statusBox.classList.remove('hidden');
+                }
+            } else {
+                if (statusBox) statusBox.classList.add('hidden');
+            }
+        } else if (type === 'ip') {
+            var ipVal = ipEl ? ipEl.value.trim() : '';
+            if (ipVal) {
+                if (idEl) idEl.value = '';
+                if (uEl) uEl.value = '';
+                if (eEl) eEl.value = '';
+                if (statusBox && statusText) {
+                    statusText.innerText = '✓ Target Alamat IP terisi: "' + ipVal + '" User ID, Username & Email tidak perlu diisi';
+                    statusBox.classList.remove('hidden');
+                }
+            } else {
+                if (statusBox) statusBox.classList.add('hidden');
+            }
+        }
+    },
+
+    selectUserForBanForm(username, email, lastIp, id) {
+        var idEl = gid('admin-ban-form-userid');
+        var uEl = gid('admin-ban-form-username');
+        var eEl = gid('admin-ban-form-email');
+        var ipEl = gid('admin-ban-form-ip');
+
+        if (idEl) idEl.value = id || '';
+        if (uEl) uEl.value = '';
+        if (eEl) eEl.value = '';
+        if (ipEl) ipEl.value = '';
+
+        Profile.onBanFormInput('userid');
+
+        if (idEl) {
+            idEl.focus();
+            idEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    },
+
+    selectIpForBanForm(ip) {
+        var idEl = gid('admin-ban-form-userid');
+        var uEl = gid('admin-ban-form-username');
+        var eEl = gid('admin-ban-form-email');
+        var ipEl = gid('admin-ban-form-ip');
+
+        if (idEl) idEl.value = '';
+        if (uEl) uEl.value = '';
+        if (eEl) eEl.value = '';
+        if (ipEl) ipEl.value = ip || '';
+
+        Profile.onBanFormInput('ip');
+
+        if (ipEl) {
+            ipEl.focus();
+            ipEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    },
+
+    showConfirmModal(options) {
+        var existing = gid('profile-custom-confirm-modal');
+        if (existing) existing.remove();
+
+        var title = options.title || 'Konfirmasi Terapkan Sanksi';
+        var message = options.message || 'Apakah Anda yakin ingin melanjutkan aksi ini?';
+        var confirmText = options.confirmText || 'Ya, Lanjutkan';
+        var confirmClass = options.confirmClass || 'bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600';
+        var onConfirm = options.onConfirm;
+
+        var modal = document.createElement('div');
+        modal.id = 'profile-custom-confirm-modal';
+        modal.className = 'fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn pointer-events-auto';
+        modal.innerHTML = `
+            <div class="bg-[#12141c]/95 border border-white/20 rounded-3xl p-5 sm:p-6 max-w-sm w-full text-center space-y-4 shadow-2xl shadow-black/90 transform scale-100 transition-all">
+                <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center mx-auto">
+                    <i data-lucide="shield-alert" class="w-6 h-6"></i>
+                </div>
+                <div class="space-y-1.5">
+                    <h3 class="text-sm sm:text-base font-bold text-white tracking-tight">${title}</h3>
+                    <p class="text-xs text-white/70 leading-relaxed font-medium">${message}</p>
+                </div>
+                <div class="flex items-center gap-2 pt-2">
+                    <button onclick="gid('profile-custom-confirm-modal')?.remove()" class="flex-1 py-3 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 font-bold text-xs border border-white/10 active:scale-95 transition-all cursor-pointer">
+                        Batal
+                    </button>
+                    <button id="profile-modal-confirm-btn" class="flex-1 py-3 px-3 rounded-xl ${confirmClass} text-white font-bold text-xs active:scale-95 transition-all cursor-pointer shadow-lg">
+                        ${confirmText}
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            try { window.lucide.createIcons(); } catch(e){}
+        }
+
+        var btn = gid('profile-modal-confirm-btn');
+        if (btn) {
+            btn.onclick = async function() {
+                modal.remove();
+                if (typeof onConfirm === 'function') {
+                    await onConfirm();
+                }
+            };
+        }
+    },
+
+    async quickBanUserIp(targetIp, username) {
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!token) {
+            if (typeof showToast === 'function') showToast('Sesi admin tidak ditemukan. Silakan login admin kembali.');
+            return;
+        }
+
+        var cleanIp = (targetIp || '').trim();
+
+        if (!cleanIp || cleanIp.includes('***')) {
+            Profile.selectIpForBanForm(cleanIp);
+            if (typeof showToast === 'function') showToast('Alamat IP tersensor. Silakan masukkan IP penuh di Form!');
+            return;
+        }
+
+        Profile.showConfirmModal({
+            title: 'Blacklist Alamat IP',
+            message: 'Apakah Anda yakin ingin memasukkan Alamat IP "' + cleanIp + '" (Pengguna: @' + username + ') ke dalam Blacklist IP?',
+            confirmText: 'Ya, Blacklist IP',
+            confirmClass: 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/30',
+            onConfirm: async function() {
+                try {
+                    var res = await fetch('/api/user-auth?action=admin_ban_ip', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-admin-token': token
+                        },
+                        body: JSON.stringify({
+                            targetIp: cleanIp,
+                            banType: 'permanent',
+                            banReason: 'Alamat IP Anda telah dimasukkan ke dalam daftar hitam (blacklist) oleh admin.'
+                        })
+                    });
+                    var data = await res.json();
+                    if (data.status) {
+                        if (typeof showToast === 'function') {
+                            showToast(data.message || 'IP ' + cleanIp + ' berhasil di-blacklist!');
+                        }
+                        Profile.loadAdminBansList();
+                        Profile.loadAdminUsersList();
+                    } else {
+                        if (typeof showToast === 'function') {
+                            showToast(data.message || 'Gagal mem-blacklist IP');
+                        }
+                    }
+                } catch(e) {
+                    if (typeof showToast === 'function') {
+                        showToast('Terjadi kesalahan koneksi');
+                    }
+                }
+            }
+        });
+    },
+
+    toggleBanFormDurationInput() {
+        var typeEl = gid('admin-ban-form-type');
+        var durContainer = gid('admin-ban-form-duration-container');
+        if (!typeEl || !durContainer) return;
+        if (typeEl.value === 'temporary') {
+            durContainer.classList.remove('hidden');
+        } else {
+            durContainer.classList.add('hidden');
+        }
+    },
+
+    async submitBanForm(isUnban) {
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!token) return;
+
+        var idVal = (gid('admin-ban-form-userid')?.value || '').trim();
+        var uVal = (gid('admin-ban-form-username')?.value || '').trim();
+        var eVal = (gid('admin-ban-form-email')?.value || '').trim();
+        var ipVal = (gid('admin-ban-form-ip')?.value || '').trim();
+
+        if (!idVal && !uVal && !eVal && !ipVal) {
+            if (typeof showToast === 'function') {
+                showToast('Silakan isi salah satu target: User ID, Username, Email, atau Alamat IP!');
+            }
+            return;
+        }
+
+        var banType = isUnban ? 'none' : (gid('admin-ban-form-type')?.value || 'permanent');
+        var durationDays = Number(gid('admin-ban-form-duration')?.value || 0);
+        var banReason = isUnban ? '' : (gid('admin-ban-form-reason')?.value || '').trim();
+
+        var submitBtn = isUnban ? gid('admin-submit-unban-btn') : gid('admin-submit-ban-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-50');
+        }
+
+        try {
+            // Handle IP-only Banning separately
+            if (ipVal && !idVal && !uVal && !eVal) {
+                var resIp = await fetch('/api/user-auth?action=admin_ban_ip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-token': token
+                    },
+                    body: JSON.stringify({
+                        targetIp: ipVal,
+                        banType: banType,
+                        durationDays: durationDays,
+                        banReason: banReason || 'Alamat IP Anda telah dimasukkan ke dalam daftar hitam oleh admin.'
+                    })
+                });
+                var dataIp = await resIp.json();
+                if (dataIp.status) {
+                    if (typeof showToast === 'function') {
+                        showToast(dataIp.message || 'Blacklist IP berhasil diperbarui!');
+                    }
+                    if (gid('admin-ban-form-ip')) gid('admin-ban-form-ip').value = '';
+                    gid('admin-ban-form-target-status')?.classList.add('hidden');
+                    Profile.loadAdminBansList();
+                    Profile.loadAdminUsersList();
+                } else {
+                    if (typeof showToast === 'function') {
+                        showToast(dataIp.message || 'Gagal memperbarui sanksi IP');
+                    }
+                }
+                return;
+            }
+
+            // Otherwise handle User Account Banning
+            var res = await fetch('/api/user-auth?action=admin_ban_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-token': token
+                },
+                body: JSON.stringify({
+                    targetId: idVal,
+                    username: uVal,
+                    email: eVal,
+                    ip: ipVal,
+                    banType: banType,
+                    durationDays: durationDays,
+                    banReason: banReason
+                })
+            });
+            var data = await res.json();
+
+            // Also ban IP address if provided alongside user
+            if (ipVal && !isUnban) {
+                await fetch('/api/user-auth?action=admin_ban_ip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-token': token
+                    },
+                    body: JSON.stringify({
+                        targetIp: ipVal,
+                        banType: banType,
+                        durationDays: durationDays,
+                        banReason: banReason || 'Alamat IP Anda telah dimasukkan ke dalam daftar hitam oleh admin.'
+                    })
+                });
+            }
+
+            if (data.status) {
+                if (typeof showToast === 'function') {
+                    showToast(data.message || 'Status sanksi akun berhasil diperbarui!');
+                }
+                if (gid('admin-ban-form-userid')) gid('admin-ban-form-userid').value = '';
+                if (gid('admin-ban-form-username')) gid('admin-ban-form-username').value = '';
+                if (gid('admin-ban-form-email')) gid('admin-ban-form-email').value = '';
+                if (gid('admin-ban-form-ip')) gid('admin-ban-form-ip').value = '';
+                gid('admin-ban-form-target-status')?.classList.add('hidden');
+
+                Profile.loadAdminBansList();
+                Profile.loadAdminUsersList();
+            } else {
+                if (typeof showToast === 'function') {
+                    showToast(data.message || 'Gagal menerapkan sanksi');
+                }
+            }
+        } catch(e) {
+            if (typeof showToast === 'function') {
+                showToast('Terjadi kesalahan koneksi');
+            }
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50');
+            }
+        }
+    },
+
+    renderUserBanCardsHtml(users) {
+        if (!users || users.length === 0) return '';
+
+        return users.map(function(u) {
+            var banStatus = u.banStatus || { isBanned: false, isWarning: false, banType: 'none', banReason: '' };
+            var statusBadgeHtml = '';
+
+            if (banStatus.isBanned) {
+                if (u.banType === 'permanent') {
+                    statusBadgeHtml = `<span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span> Banned Permanen</span>`;
+                } else {
+                    statusBadgeHtml = `<span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Banned</span>`;
+                }
+            } else if (banStatus.isWarning || u.banType === 'warning') {
+                statusBadgeHtml = `<span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span> Banner Peringatan</span>`;
+            } else {
+                statusBadgeHtml = `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Aktif</span>`;
+            }
+
+            var unbanBtnHtml = '';
+            if (u.banType && u.banType !== 'none') {
+                unbanBtnHtml = `
+                <button onclick="Profile.quickUnbanUser('${u.id}', '${u.username}')" class="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs border border-emerald-500/40 flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-500/10">
+                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+                    <span>Buka Banned</span>
+                </button>`;
+            }
+
+            return `
+            <div class="p-3.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-all space-y-2.5 shadow-lg">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-3">
+                        <img src="${u.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + u.username}" class="w-10 h-10 rounded-xl object-cover bg-black/40 border border-white/15 shrink-0" alt="${u.username}">
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h4 class="text-xs font-bold text-white truncate flex items-center gap-1">
+                                    <span>${u.username}</span>
+                                    <span class="global-verified-badge-container inline-flex items-center"></span>
+                                </h4>
+                                ${statusBadgeHtml}
+                            </div>
+                            <p class="text-[11px] text-white/60 truncate flex items-center gap-1 mt-0.5">
+                                <span>${u.email}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                        <button onclick="Profile.selectUserForBanForm('${u.username}', '${u.email}', '${u.lastIp}', '${u.id}')" class="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold text-xs border border-sky-500/30 flex items-center gap-1 active:scale-95 transition-all cursor-pointer">
+                            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            <span>Pilih Akun</span>
+                        </button>
+                        <button onclick="Profile.quickBanUserIp('${u.rawLastIp || u.lastIp}', '${u.username}')" class="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold text-xs border border-red-500/30 flex items-center gap-1 active:scale-95 transition-all cursor-pointer" title="Ban Alamat IP penguna ini">
+                            <i data-lucide="wifi-off" class="w-3.5 h-3.5 text-red-400"></i>
+                            <span>Blacklist IP</span>
+                        </button>
+                        ${unbanBtnHtml}
+                    </div>
+                </div>
+
+                <div class="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-1.5">
+                    <div class="flex items-center justify-between text-[11px]">
+                        <span class="text-white/40 font-bold">IP TERAKHIR:</span>
+                        ${Profile.formatIpDisplay(u.lastIp)}
+                    </div>
+                    <div class="pt-1.5 border-t border-white/10 text-[11px] font-mono text-amber-300/90 truncate flex items-center justify-between">
+                        <span class="text-white/40 font-bold font-sans">USER ID:</span>
+                        <span onclick="navigator.clipboard.writeText('${u.id}'); if(typeof showToast==='function') showToast('ID disalin: ${u.id}');" class="cursor-pointer hover:underline flex items-center gap-1" title="Klik untuk Salin User ID">
+                            <i data-lucide="fingerprint" class="w-3 h-3 text-amber-400"></i> ${u.id}
+                        </span>
+                    </div>
+                </div>
+
+                ${u.banReason ? `
+                <div class="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-200 flex items-start gap-2">
+                    <i data-lucide="info" class="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5"></i>
+                    <div>
+                        <span class="font-bold block text-[10px] uppercase text-rose-300">Pesan Alasan Aktif:</span>
+                        <p class="mt-0.5 font-medium leading-normal">${u.banReason}</p>
+                    </div>
+                </div>` : ''}
+            </div>`;
+        }).join('');
+    },
+
+    filterAdminBansList() {
+        var input = gid('admin-ban-search-input');
+        var query = (input ? input.value : '').trim().toLowerCase();
+        var users = Profile.cachedAdminUsers || [];
+        var cardsContainer = gid('admin-bans-cards-list');
+        if (!cardsContainer) return;
+
+        var filtered = users.filter(function(u) {
+            if (!query) return true;
+            var uname = (u.username || '').toLowerCase();
+            var email = (u.email || '').toLowerCase();
+            var lastIp = (u.lastIp || '').toLowerCase();
+            var logsMatch = (u.loginLogs || []).some(function(l) {
+                return (l.ip || '').toLowerCase().includes(query);
+            });
+            return uname.includes(query) || email.includes(query) || lastIp.includes(query) || logsMatch;
+        });
+
+        if (filtered.length === 0) {
+            cardsContainer.innerHTML = `
+            <div class="p-8 text-center rounded-2xl bg-white/[0.03] border border-white/10 text-white/50 text-xs space-y-2">
+                <i data-lucide="search-x" class="w-8 h-8 mx-auto text-white/30"></i>
+                <p class="font-bold text-white/80">Pengguna Tidak Ditemukan</p>
+                <p class="text-[11px] text-white/40">Tidak ada pengguna yang cocok dengan pencarian "${query}".</p>
+            </div>`;
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        cardsContainer.innerHTML = Profile.renderUserBanCardsHtml(filtered);
+        if (window.lucide) lucide.createIcons();
+        if (typeof Auth !== 'undefined' && typeof Auth.syncVerifiedBadges === 'function') {
+            Auth.syncVerifiedBadges();
+        }
+    },
+
+    async quickUnbanUser(userId, username) {
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!token) {
+            if (typeof showToast === 'function') showToast('Sesi admin tidak ditemukan. Silakan login admin kembali.');
+            return;
+        }
+
+        Profile.showConfirmModal({
+            title: 'Buka Banned Akun',
+            message: 'Apakah Anda yakin ingin membuka status Banned akun @' + username + '?',
+            confirmText: 'Ya, Buka Banned',
+            confirmClass: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30',
+            onConfirm: async function() {
+                try {
+                    var res = await fetch('/api/user-auth?action=admin_ban_user', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-admin-token': token
+                        },
+                        body: JSON.stringify({
+                            userId: userId,
+                            banType: 'none',
+                            durationDays: 0,
+                            banReason: ''
+                        })
+                    });
+                    var data = await res.json();
+
+                    if (data.status) {
+                        if (typeof showToast === 'function') {
+                            showToast('Banned akun @' + username + ' telah dibuka (Status Aktif)!');
+                        }
+                        Profile.loadAdminUsersList();
+                        Profile.loadAdminBansList();
+                    } else {
+                        if (typeof showToast === 'function') {
+                            showToast(data.message || 'Gagal membuka Banned');
+                        }
+                    }
+                } catch(e) {
+                    if (typeof showToast === 'function') {
+                        showToast('Terjadi kesalahan koneksi');
+                    }
+                }
+            }
+        });
+    },
+
+    async quickUnbanIp(targetIp) {
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!token) {
+            if (typeof showToast === 'function') showToast('Sesi admin tidak ditemukan. Silakan login admin kembali.');
+            return;
+        }
+
+        Profile.showConfirmModal({
+            title: 'Buka Blacklist IP',
+            message: 'Apakah Anda yakin ingin menghapus Alamat IP "' + targetIp + '" dari daftar Blacklist IP?',
+            confirmText: 'Ya, Buka Blacklist IP',
+            confirmClass: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30',
+            onConfirm: async function() {
+                try {
+                    var res = await fetch('/api/user-auth?action=admin_unban_ip', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-admin-token': token
+                        },
+                        body: JSON.stringify({ targetIp: targetIp })
+                    });
+                    var data = await res.json();
+
+                    if (data.status) {
+                        if (typeof showToast === 'function') {
+                            showToast('IP Address ' + targetIp + ' berhasil dihapus dari blacklist!');
+                        }
+                        Profile.loadAdminBansList();
+                        Profile.loadAdminUsersList();
+                    } else {
+                        if (typeof showToast === 'function') {
+                            showToast(data.message || 'Gagal membuka Banned IP');
+                        }
+                    }
+                } catch(e) {
+                    if (typeof showToast === 'function') {
+                        showToast('Terjadi kesalahan koneksi');
+                    }
+                }
+            }
+        });
+    },
+
+    formatUserLocalDateTime(isoString) {
+        if (!isoString) return 'Belum Pernah';
+        try {
+            var d = new Date(isoString);
+            if (isNaN(d.getTime())) return isoString;
+            return d.toLocaleString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).replace(/\./g, ':') + ' WIB';
+        } catch(e) {
+            return isoString;
+        }
+    },
+
+    openAdminBanModal(userId) {
+        var users = Profile.cachedAdminUsers || [];
+        var u = users.find(function(user) { return user.id === userId; });
+        if (!u) return;
+
+        var existing = gid('admin-ban-config-modal');
+        if (existing) existing.remove();
+
+        var banType = u.banType || 'none';
+        var banReason = u.banReason || '';
+
+        var modal = document.createElement('div');
+        modal.id = 'admin-ban-config-modal';
+        modal.className = 'fixed inset-0 z-[999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn pointer-events-auto';
+        modal.innerHTML = `
+            <div class="relative w-full max-w-lg bg-[#12141c] border border-white/20 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-left">
+                <!-- Close Button -->
+                <button onclick="gid('admin-ban-config-modal')?.remove()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition active:scale-95 cursor-pointer">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+
+                <!-- Header -->
+                <div class="flex items-center gap-3 pr-8">
+                    <img src="${u.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + u.username}" class="w-10 h-10 rounded-xl object-cover bg-black/40 border border-white/20" alt="${u.username}">
+                    <div>
+                        <h3 class="text-base font-bold text-white">Kelola Sanksi / Banned Pengguna</h3>
+                        <p class="text-xs text-amber-300 font-semibold">@${u.username} &bull; ${u.email}</p>
+                    </div>
+                </div>
+
+                <!-- Form -->
+                <div class="space-y-3.5 pt-2 border-t border-white/10">
+                    <!-- Jenis Sanksi Select -->
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-bold text-white/80">Pilih Jenis Sanksi / Status Akun</label>
+                        <select id="admin-ban-select-type" onchange="Profile.toggleBanDurationInput()" class="w-full bg-black/60 border border-white/15 focus:border-rose-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all cursor-pointer font-medium">
+                            <option value="none" ${banType === 'none' ? 'selected' : ''}>Aktif Bebas Sanksi Buka Banned</option>
+                            <option value="permanent" ${banType === 'permanent' ? 'selected' : ''}>Banned Permanen</option>
+                            <option value="temporary" ${banType === 'temporary' ? 'selected' : ''}>Banned Durasi Waktu</option>
+                            <option value="warning" ${banType === 'warning' ? 'selected' : ''}>Banner Peringatan Saja</option>
+                        </select>
+                    </div>
+
+                    <!-- Preset Durasi (Untuk Blokir Sementara) -->
+                    <div id="admin-ban-duration-container" class="space-y-1.5 ${banType === 'temporary' ? '' : 'hidden'}">
+                        <label class="text-xs font-bold text-white/80">Pilih Durasi Banned</label>
+                        <select id="admin-ban-duration-select" class="w-full bg-black/60 border border-white/15 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all cursor-pointer font-medium">
+                            <option value="1">Hari 24Jam'</option>
+                            <option value="5" selected>5Hari</option>
+                            <option value="7">7Hari</option>
+                            <option value="10">10Hari</option>
+                            <option value="20">20Hari</option>
+                            <option value="30">1 Bulan 30Hari</option>
+                            <option value="60">2 Bulan 60Hari</option>
+                            <option value="365">1 Tahun 365Hari</option>
+                            <option value="730">2 Tahun 730Hari</option>
+                            <option value="1095">3 Tahun 1095Hari</option>
+                            <option value="1460">4 Tahun 1460Hari</option>
+                            <option value="1825">5 Tahun 1825Hari</option>
+                            <option value="3650">10Tahun 3650Hari</option>
+                            <option value="10950">30Tahun 10950Hari/option>
+                            <option value="14600">40Tahun 14600Har</option>
+                            <option value="18250">50Tahun 18250Hari</option>
+                            <option value="32850">90Tahun 32850Hari</option>
+                            <option value="36500">100Tahun 36500Hari</option>
+                        </select>
+                    </div>
+
+                    <!-- Pesan / Teks Alasan Blokir -->
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-bold text-white/80">Teks Pesan Peringatan / Alasan Banned Ditampilkan ke Pengguna</label>
+                        <textarea id="admin-ban-reason-text" rows="3" placeholder="Tulis alasan atau pesan peringatan yang akan ditampilkan persis di tengah layar pengguna (misal: Akun Anda diban karena melakukan pelanggaran ketentuan)..." class="w-full bg-black/60 border border-white/15 focus:border-rose-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none transition-all leading-relaxed font-sans">${banReason || 'Akun Anda telah diblokir atau diberikan peringatan oleh administrator karena adanya pelanggaran ketentuan.'}</textarea>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-col sm:flex-row gap-2 pt-2">
+                    <button id="admin-save-ban-btn" onclick="Profile.saveUserBan('${u.id}')" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-500/25 active:scale-95 transition-all cursor-pointer">
+                        <i data-lucide="check-circle" class="w-4 h-4"></i>
+                        <span>Simpan & Terapkan Sanksi</span>
+                    </button>
+
+                    <button onclick="Profile.deleteUserAccount('${u.id}', '${u.username}')" class="py-3 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer" title="Hapus akun permanen dari server">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <span>Hapus Akun</span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        if (window.lucide) lucide.createIcons();
+    },
+
+    toggleBanDurationInput() {
+        var typeSelect = gid('admin-ban-select-type');
+        var durContainer = gid('admin-ban-duration-container');
+        if (!typeSelect || !durContainer) return;
+        if (typeSelect.value === 'temporary') {
+            durContainer.classList.remove('hidden');
+        } else {
+            durContainer.classList.add('hidden');
+        }
+    },
+
+    async saveUserBan(userId) {
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!token) return;
+
+        var typeEl = gid('admin-ban-select-type');
+        var durEl = gid('admin-ban-duration-select');
+        var reasonEl = gid('admin-ban-reason-text');
+        var saveBtn = gid('admin-save-ban-btn');
+
+        var banType = typeEl ? typeEl.value : 'none';
+        var durationDays = durEl ? Number(durEl.value) : 0;
+        var banReason = reasonEl ? reasonEl.value.trim() : '';
+
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>Menyimpan...</span>';
+            if (window.lucide) lucide.createIcons();
+        }
+
+        try {
+            var res = await fetch('/api/user-auth?action=admin_ban_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-token': token
+                },
+                body: JSON.stringify({
+                    userId: userId,
+                    banType: banType,
+                    durationDays: durationDays,
+                    banReason: banReason
+                })
+            });
+            var data = await res.json();
+
+            if (data.status) {
+                if (typeof showToast === 'function') {
+                    showToast('Status sanksi pengguna berhasil diperbarui!');
+                }
+                gid('admin-ban-config-modal')?.remove();
+                Profile.loadAdminUsersList();
+                Profile.loadAdminBansList();
+            } else {
+                if (typeof showToast === 'function') {
+                    showToast(data.message || 'Gagal menyimpan sanksi');
+                }
+            }
+        } catch(e) {
+            if (typeof showToast === 'function') {
+                showToast('Terjadi kesalahan koneksi');
+            }
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> <span>Simpan & Terapkan Sanksi</span>';
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+    },
+
+    async deleteUserAccount(userId, username) {
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!token) return;
+
+        if (!confirm('Apakah Anda yakin ingin menghapus akun @' + username + ' secara permanen? Seluruh data akun akan dihapus.')) {
+            return;
+        }
+
+        try {
+            var res = await fetch('/api/user-auth?action=admin_delete_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-token': token
+                },
+                body: JSON.stringify({ userId: userId })
+            });
+            var data = await res.json();
+
+            if (data.status) {
+                if (typeof showToast === 'function') {
+                    showToast('Akun @' + username + ' telah dihapus permanen.');
+                }
+                gid('admin-ban-config-modal')?.remove();
+                Profile.loadAdminUsersList();
+                Profile.loadAdminBansList();
+            } else {
+                if (typeof showToast === 'function') {
+                    showToast(data.message || 'Gagal menghapus akun');
+                }
+            }
+        } catch(e) {
+            if (typeof showToast === 'function') {
+                showToast('Terjadi kesalahan koneksi');
+            }
+        }
+    }
 };
 
 var Dev = Profile;
