@@ -2,27 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const adminAuth = require('./admin-auth.js');
-
-const USERS_FILE = path.join(__dirname, '../data/users.json');
-const BAN_REGISTRY_FILE = path.join(__dirname, '../data/.ban_registry.json');
-const BANNED_IPS_FILE = path.join(__dirname, '../data/.banned_ips.json');
-
-// Ensure data directory exists
-function ensureDataDir() {
-    const dataDir = path.dirname(USERS_FILE);
-    if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-    }
-    if (!fs.existsSync(USERS_FILE)) {
-        fs.writeFileSync(USERS_FILE, JSON.stringify({ users: [], sessions: {} }, null, 2), 'utf-8');
-    }
-}
+const storage = require('./storage.js');
 
 function readBanRegistry() {
     try {
-        if (!fs.existsSync(BAN_REGISTRY_FILE)) return {};
-        const raw = fs.readFileSync(BAN_REGISTRY_FILE, 'utf-8');
-        return JSON.parse(raw);
+        const data = storage.readData('.ban_registry.json', {});
+        return (data && typeof data === 'object') ? data : {};
     } catch (e) {
         return {};
     }
@@ -30,7 +15,7 @@ function readBanRegistry() {
 
 function writeBanRegistry(registry) {
     try {
-        fs.writeFileSync(BAN_REGISTRY_FILE, JSON.stringify(registry, null, 2), 'utf-8');
+        storage.writeData('.ban_registry.json', registry || {});
     } catch (e) {
         console.error('Failed to write ban registry:', e.message);
     }
@@ -38,9 +23,8 @@ function writeBanRegistry(registry) {
 
 function readBannedIps() {
     try {
-        if (!fs.existsSync(BANNED_IPS_FILE)) return {};
-        const raw = fs.readFileSync(BANNED_IPS_FILE, 'utf-8');
-        return JSON.parse(raw);
+        const data = storage.readData('.banned_ips.json', {});
+        return (data && typeof data === 'object') ? data : {};
     } catch (e) {
         return {};
     }
@@ -48,8 +32,7 @@ function readBannedIps() {
 
 function writeBannedIps(ipsMap) {
     try {
-        ensureDataDir();
-        fs.writeFileSync(BANNED_IPS_FILE, JSON.stringify(ipsMap, null, 2), 'utf-8');
+        storage.writeData('.banned_ips.json', ipsMap || {});
     } catch (e) {
         console.error('Failed to write banned IPs:', e.message);
     }
@@ -96,15 +79,16 @@ function getIpBanStatus(ip) {
 }
 
 function readData() {
-    ensureDataDir();
     try {
-        const raw = fs.readFileSync(USERS_FILE, 'utf-8');
-        const data = JSON.parse(raw);
+        const data = storage.readData('users.json', { users: [], sessions: {} });
+        const result = (data && typeof data === 'object') ? data : { users: [], sessions: {} };
+        if (!Array.isArray(result.users)) result.users = [];
+        if (!result.sessions || typeof result.sessions !== 'object') result.sessions = {};
 
         // Anti-Tamper Ban Registry Verification
         const banRegistry = readBanRegistry();
-        if (data && Array.isArray(data.users)) {
-            data.users.forEach(u => {
+        if (result.users && Array.isArray(result.users)) {
+            result.users.forEach(u => {
                 if (u && u.id && banRegistry[u.id]) {
                     const reg = banRegistry[u.id];
                     if (reg.banType && reg.banType !== 'none') {
@@ -124,16 +108,15 @@ function readData() {
                 }
             });
         }
-        return data;
+        return result;
     } catch (e) {
         return { users: [], sessions: {} };
     }
 }
 
 function writeData(data) {
-    ensureDataDir();
     try {
-        fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+        storage.writeData('users.json', data || { users: [], sessions: {} });
     } catch (e) {
         console.error('Failed to write users data:', e.message);
     }
@@ -239,9 +222,9 @@ function getUserBanStatus(user) {
                 isBanned: true,
                 isWarning: false,
                 banType: 'temporary',
-                banDurationText: durText || '',
+                banDurationText: durText || 'Sementara',
                 banDurationDays: user.banDurationDays || null,
-                banReason: user.banReason || 'Akun Anda diban oleh sistem.',
+                banReason: user.banReason || 'Akun Anda sedang diblokir sementara oleh administrator.',
                 banExpiresAt: user.banExpiresAt
             };
         } else {
@@ -277,12 +260,13 @@ module.exports = async (req, res) => {
         return res.status(200).end();
     }
 
-    const action = (req.query.action || req.body?.action || '').toLowerCase();
-    let body = req.body;
-    if (typeof body === 'string') {
-        try { body = JSON.parse(body); } catch (e) { body = {}; }
-    }
-    body = body || {};
+    try {
+        const action = (req.query.action || req.body?.action || '').toLowerCase();
+        let body = req.body;
+        if (typeof body === 'string') {
+            try { body = JSON.parse(body); } catch (e) { body = {}; }
+        }
+        body = body || {};
 
     const db = readData();
     const clientIp = getClientIp(req);
@@ -484,7 +468,7 @@ module.exports = async (req, res) => {
 
             return res.json({
                 status: true,
-                message: `Alamat IP "${targetIp}" berhasil dibanned (${banType === 'permanent' ? 'Permanen' : ''})!`,
+                message: `Alamat IP "${targetIp}" berhasil dibanned (${banType === 'permanent' ? 'Permanen' : 'Sementara'})!`,
                 ipBan: getIpBanStatus(targetIp)
             });
         }
@@ -549,7 +533,7 @@ module.exports = async (req, res) => {
                 banDurationDays: ipBanCheck.banDurationDays,
                 banDurationText: ipBanCheck.banDurationText
             },
-            message: 'ALAMAT IP ANDA DIBLOKIR / DIBANNED OLEH SISTEM'
+            message: 'ALAMAT IP ANDA DIBLOKIR / DIBANNED KHUSUS OLEH ADMINISTRATOR'
         });
     }
 
@@ -889,4 +873,8 @@ module.exports = async (req, res) => {
     }
 
     res.status(400).json({ status: false, message: 'Action tidak dikenal' });
+    } catch (err) {
+        console.error('User-Auth Handler Error:', err);
+        return res.status(500).json({ status: false, message: 'Terjadi kesalahan server internal: ' + err.message });
+    }
 };
