@@ -6,6 +6,44 @@ const fs = require('fs');
 
 const app = express();
 
+// Disable Express fingerprinting header for security
+app.disable('x-powered-by');
+
+// Global Security Headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+});
+
+// Strict Block: prevent any client/DevTools probe from reading server files or secrets (.env, package.json, server.js, etc.)
+app.use((req, res, next) => {
+    const rawPath = (req.path || '').toLowerCase();
+    
+    // Block dotfiles, environment files, source code files, database dumps
+    const isSensitive = 
+        rawPath.startsWith('/.') ||
+        rawPath.includes('/.env') ||
+        rawPath.endsWith('.env') ||
+        rawPath.endsWith('.json') && !rawPath.startsWith('/manifest.json') ||
+        rawPath.endsWith('.sql') ||
+        rawPath.endsWith('.md') ||
+        rawPath.endsWith('.yml') ||
+        rawPath.endsWith('.yaml') ||
+        rawPath === '/server.js' ||
+        rawPath.startsWith('/api/') && rawPath.endsWith('.js');
+
+    if (isSensitive) {
+        return res.status(403).json({
+            status: false,
+            message: 'Akses ditolak: Berkas sistem dan kredensial database terproteksi penuh oleh server.'
+        });
+    }
+    next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -173,7 +211,9 @@ app.get('/qris.png', (req, res) => {
 });
 
 // Static files (from public)
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+    dotfiles: 'deny'
+}));
 
 // API Fallback handler (Return JSON for /api/ routes instead of index.html)
 app.use((req, res, next) => {
