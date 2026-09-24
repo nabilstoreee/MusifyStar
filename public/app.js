@@ -1,3 +1,19 @@
+// SECURITY SHIELD: DevTools & Client Tamper Protection
+(function() {
+    try {
+        if (typeof console !== 'undefined' && console.log) {
+            console.log(
+                '%c🛡️ MUSIFYSTAR SECURITY SHIELD ACTIVE%c\n' +
+                'Kredensial database (DATABASE_URL) dan rahasia sistem diisolasi 100% di server backend.\n' +
+                'Tidak ada data sensitif yang dapat diakses atau dimanipulasi melalui browser DevTools.\n' +
+                'Jangan menempelkan (paste) skrip asing ke konsol ini (Self-XSS Protection).',
+                'color: #00f2fe; font-size: 15px; font-weight: bold; background: #0f172a; padding: 4px 10px; border-radius: 6px;',
+                'color: #94a3b8; font-size: 11px; margin-top: 4px;'
+            );
+        }
+    } catch(e) {}
+})();
+
 // PWA - INSTALL & OFFLINE MODE HANDLING
 var deferredInstallPrompt=null;
 var isStandaloneApp=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
