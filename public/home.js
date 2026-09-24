@@ -34,6 +34,15 @@ var Home = {
             '</button>';
         }).join('');
 
+        var uAvatar = (window.Auth && Auth.currentUser && Auth.currentUser.avatar) ? Auth.currentUser.avatar : '/logo.png';
+        var hasUser = !!(window.Auth && Auth.currentUser);
+        var avatarBtnContent = hasUser
+            ? '<img src="' + uAvatar + '" class="w-full h-full rounded-full object-cover" alt="Avatar" onerror="this.src=\'/logo.png\'">'
+            : '<i data-lucide="user" class="w-5 h-5"></i>';
+        var avatarBtnTitle = hasUser
+            ? ('Akun: ' + Auth.currentUser.username)
+            : 'Login & Akun';
+
         gid('view-home').innerHTML = `
         <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(13, 15, 22, 0.88) 0%, rgba(13, 15, 22, 0.97) 100%), url('/banner.png') center/cover no-repeat; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
             <div class="flex justify-between items-center mb-3">
@@ -44,8 +53,8 @@ var Home = {
                     <button onclick="App.switch('search')" class="w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg cursor-pointer" title="Cari">
                         <i data-lucide="search" class="w-5 h-5"></i>
                     </button>
-                    <button onclick="Auth.toggleTopDropdown(this)" class="header-profile-btn w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg overflow-hidden cursor-pointer" title="Login & Akun">
-                        <i data-lucide="user" class="w-5 h-5"></i>
+                    <button onclick="Auth.toggleTopDropdown(this)" class="header-profile-btn w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg overflow-hidden cursor-pointer" title="${avatarBtnTitle}">
+                        ${avatarBtnContent}
                     </button>
                 </div>
             </div>
@@ -89,6 +98,7 @@ var Home = {
         if (window.App && typeof App.renderSeasonalBanner === 'function') App.renderSeasonalBanner();
         if (window.App && typeof App.renderBroadcastBanner === 'function') App.renderBroadcastBanner();
         if (window.Maintenance && typeof Maintenance.updateUI === 'function') Maintenance.updateUI(Maintenance.isActive);
+        if (window.Auth && typeof Auth.updateHeaderUI === 'function') Auth.updateHeaderUI();
 
         if (Home.activeCategory && Home.activeCategory !== 'Semua') {
             if (Home.activeCategory === 'Developer Profile') {

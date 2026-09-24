@@ -921,7 +921,11 @@ var App={
 
         var circleIcon = gid('magic-circle-icon');
         if (circleIcon && tabIcons[t]) {
-            circleIcon.innerHTML = '<i data-lucide="' + tabIcons[t] + '"></i>';
+            if (t === 'dev' && window.Auth && Auth.currentUser && Auth.currentUser.avatar) {
+                circleIcon.innerHTML = '<img src="' + Auth.currentUser.avatar + '" class="w-full h-full rounded-full object-cover" alt="Avatar" onerror="this.outerHTML=\'<i data-lucide=\\\'user\\\'></i>\'">';
+            } else {
+                circleIcon.innerHTML = '<i data-lucide="' + tabIcons[t] + '"></i>';
+            }
         }
 
         navTabs.forEach(function(n){

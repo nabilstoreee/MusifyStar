@@ -51,10 +51,10 @@ var Auth = {
 
     startRealtimeBanMonitor() {
         if (window._realtimeBanMonitorTimer) clearInterval(window._realtimeBanMonitorTimer);
-        // Poll every 5 seconds in real-time to check if admin banned account or IP
+        // Poll every 30 seconds for background safety & ban sync
         window._realtimeBanMonitorTimer = setInterval(function() {
             Auth.checkSession();
-        }, 5000);
+        }, 30000);
     },
 
     async checkSession() {
@@ -63,6 +63,8 @@ var Auth = {
             var url = '/api/user-auth?action=me';
             if (Auth.token) {
                 headers['Authorization'] = 'Bearer ' + Auth.token;
+                headers['X-Auth-Token'] = Auth.token;
+                url += '&token=' + encodeURIComponent(Auth.token);
             }
             if (Auth.currentUser) {
                 if (Auth.currentUser.id) headers['X-User-Id'] = Auth.currentUser.id;
@@ -159,15 +161,18 @@ var Auth = {
                     sessionStorage.setItem('musifystar_auth_user', JSON.stringify(data.user));
                 }
                 Auth.updateHeaderUI();
-            } else if (Auth.token && data && data.status && data.authenticated === false && !data.banned) {
-                // Session token is invalid on server and user is not banned: revert cleanly to guest
-                Auth.token = null;
-                Auth.currentUser = null;
-                localStorage.removeItem('musifystar_auth_token');
-                localStorage.removeItem('musifystar_auth_user');
-                sessionStorage.removeItem('musifystar_auth_token');
-                sessionStorage.removeItem('musifystar_auth_user');
-                Auth.updateHeaderUI();
+            } else if (res.status === 401 || (data && data.tokenInvalid === true)) {
+                // Only clear session if server explicitly returned 401 or tokenInvalid on consecutive checks
+                Auth._failedSessionChecks = (Auth._failedSessionChecks || 0) + 1;
+                if (Auth._failedSessionChecks >= 3) {
+                    Auth.token = null;
+                    Auth.currentUser = null;
+                    localStorage.removeItem('musifystar_auth_token');
+                    localStorage.removeItem('musifystar_auth_user');
+                    sessionStorage.removeItem('musifystar_auth_token');
+                    sessionStorage.removeItem('musifystar_auth_user');
+                    Auth.updateHeaderUI();
+                }
             }
         } catch (e) {
             console.warn('Check session error:', e);
@@ -185,6 +190,33 @@ var Auth = {
                 btn.setAttribute('title', 'Login / Profil');
             }
         });
+
+        // Also update bottom navigation profile tab icon if user is logged in
+        var navDev = gid('nav-dev');
+        if (navDev) {
+            var iconWrap = navDev.querySelector('.magic-tab-icon');
+            if (iconWrap) {
+                if (Auth.currentUser && Auth.currentUser.avatar) {
+                    iconWrap.innerHTML = '<img src="' + Auth.currentUser.avatar + '" class="w-5 h-5 rounded-full object-cover border border-white/40" alt="Avatar" onerror="this.outerHTML=\'<i data-lucide=\\\'user\\\'></i>\'">';
+                } else {
+                    iconWrap.innerHTML = '<i data-lucide="user"></i>';
+                }
+            }
+        }
+
+        // Re-render Profile page if it is currently displayed
+        if (typeof Profile !== 'undefined' && typeof Profile.render === 'function' && typeof S !== 'undefined' && S.at === 'dev') {
+            Profile.render();
+            var circleIcon = gid('magic-circle-icon');
+            if (circleIcon) {
+                if (Auth.currentUser && Auth.currentUser.avatar) {
+                    circleIcon.innerHTML = '<img src="' + Auth.currentUser.avatar + '" class="w-full h-full rounded-full object-cover" alt="Avatar" onerror="this.outerHTML=\'<i data-lucide=\\\'user\\\'></i>\'">';
+                } else {
+                    circleIcon.innerHTML = '<i data-lucide="user"></i>';
+                }
+            }
+        }
+
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
             try { window.lucide.createIcons(); } catch(e){}
         }
@@ -522,7 +554,7 @@ var Auth = {
             </div>
 
             <div class="pt-2.5 border-t border-white/10 space-y-2">
-                <button onclick="gid('header-auth-dropdown-wrapper')?.remove(); Auth.openUserProfileModal();" class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-sky-500/20 to-indigo-500/20 hover:from-sky-500/30 hover:to-indigo-500/30 border border-sky-500/30 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm">
+                <button onclick="gid('header-auth-dropdown-wrapper')?.remove(); if(typeof App !== 'undefined' && App.switch) App.switch('dev'); Auth.openUserProfileModal();" class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-sky-500/20 to-indigo-500/20 hover:from-sky-500/30 hover:to-indigo-500/30 border border-sky-500/30 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm">
                     <i data-lucide="user-pen" class="w-3.5 h-3.5 text-sky-400"></i>
                     <span>Buka Halaman Profil (Edit Profil)</span>
                 </button>
