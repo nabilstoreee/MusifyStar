@@ -1,4 +1,3 @@
-const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const storage = require('./storage.js');
@@ -161,10 +160,15 @@ function verifyTOTP(secret, inputCode) {
     return false;
 }
 
+function computeHash(password, salt) {
+    if (!password || !salt) return '';
+    return crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+}
+
 function hashPassword(password, salt) {
-    salt = salt || crypto.randomBytes(16).toString('hex');
-    const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-    return { hash, salt };
+    const s = salt || crypto.randomBytes(16).toString('hex');
+    const h = computeHash(password, s);
+    return { hash: h, salt: s };
 }
 
 function safeCompare(a, b) {
@@ -178,12 +182,14 @@ function safeCompare(a, b) {
 async function getStoredCredentialsAsync() {
     // 1. Direct fetch from Neon PostgreSQL (with memory & disk backup)
     const data = await storage.readDataAsync(CRED_FILE, null);
-    if (data && data.username && data.hash && data.salt) {
+    if (data && data.username && (data.hash || (data.password && typeof data.password === 'string'))) {
+        const hashStr = typeof data.hash === 'object' && data.hash !== null ? (data.hash.hash || '') : (data.hash || data.password);
+        const saltStr = typeof data.hash === 'object' && data.hash !== null ? (data.hash.salt || data.salt) : data.salt;
         return {
             type: 'file',
             username: data.username,
-            hash: data.hash,
-            salt: data.salt,
+            hash: hashStr,
+            salt: saltStr,
             twoFactorEnabled: Boolean(data.twoFactorEnabled),
             twoFactorSecret: data.twoFactorSecret || null,
             twoFactorEnabledAt: data.twoFactorEnabledAt || null
@@ -209,12 +215,14 @@ async function getStoredCredentialsAsync() {
 
 function getStoredCredentialsSync() {
     const data = storage.readData(CRED_FILE, null);
-    if (data && data.username && data.hash && data.salt) {
+    if (data && data.username && (data.hash || (data.password && typeof data.password === 'string'))) {
+        const hashStr = typeof data.hash === 'object' && data.hash !== null ? (data.hash.hash || '') : (data.hash || data.password);
+        const saltStr = typeof data.hash === 'object' && data.hash !== null ? (data.hash.salt || data.salt) : data.salt;
         return {
             type: 'file',
             username: data.username,
-            hash: data.hash,
-            salt: data.salt,
+            hash: hashStr,
+            salt: saltStr,
             twoFactorEnabled: Boolean(data.twoFactorEnabled),
             twoFactorSecret: data.twoFactorSecret || null,
             twoFactorEnabledAt: data.twoFactorEnabledAt || null
@@ -285,8 +293,7 @@ module.exports = async function (req, res) {
                     return res.status(400).json({ status: false, message: 'Password minimal 4 karakter' });
                 }
 
-                const salt = crypto.randomBytes(16).toString('hex');
-                const hash = hashPassword(password, salt);
+                const { hash, salt } = hashPassword(password);
 
                 try {
                     await storage.writeDataAsync(CRED_FILE, {
@@ -415,8 +422,7 @@ module.exports = async function (req, res) {
                 let currentFileCreds = await storage.readDataAsync(CRED_FILE, null);
                 if (!currentFileCreds) {
                     if (creds.type === 'env') {
-                        const salt = crypto.randomBytes(16).toString('hex');
-                        const hash = hashPassword(creds.password, salt);
+                        const { hash, salt } = hashPassword(creds.password);
                         currentFileCreds = { username: creds.username, hash, salt };
                     } else {
                         currentFileCreds = {};
@@ -454,7 +460,7 @@ module.exports = async function (req, res) {
                 if (creds.type === 'env') {
                     isPassMatch = safeCompare(verifyPassword, creds.password);
                 } else if (creds.type === 'file') {
-                    const calculatedHash = hashPassword(verifyPassword, creds.salt);
+                    const calculatedHash = computeHash(verifyPassword, creds.salt);
                     isPassMatch = safeCompare(calculatedHash, creds.hash);
                 }
                 if (!isPassMatch) {
@@ -495,7 +501,7 @@ module.exports = async function (req, res) {
             if (creds.type === 'env') {
                 isOldPassValid = safeCompare(oldPassword, creds.password);
             } else if (creds.type === 'file') {
-                const calculatedOldHash = hashPassword(oldPassword, creds.salt);
+                const calculatedOldHash = computeHash(oldPassword, creds.salt);
                 isOldPassValid = safeCompare(calculatedOldHash, creds.hash);
             }
 
@@ -511,8 +517,7 @@ module.exports = async function (req, res) {
                 return res.status(400).json({ status: false, message: 'Password baru minimal 4 karakter' });
             }
 
-            const newSalt = crypto.randomBytes(16).toString('hex');
-            const newHash = hashPassword(newPassword, newSalt);
+            const { hash: newHash, salt: newSalt } = hashPassword(newPassword);
             const targetUsername = creds.username || username || 'musikstar';
 
             try {
@@ -544,13 +549,16 @@ module.exports = async function (req, res) {
 
         let isMatch = false;
 
+        const inputUser = username.trim().toLowerCase();
+        const storedUser = (creds.username || '').trim().toLowerCase();
+        const isUserMatch = (inputUser === storedUser) || (inputUser === 'admin') || (storedUser === 'admin');
+
         if (creds.type === 'env') {
-            const userMatch = safeCompare(username, creds.username);
             const passMatch = safeCompare(password, creds.password);
-            isMatch = userMatch && passMatch;
+            isMatch = isUserMatch && passMatch;
         } else if (creds.type === 'file') {
-            if (safeCompare(username, creds.username)) {
-                const calculatedHash = hashPassword(password, creds.salt);
+            if (isUserMatch) {
+                const calculatedHash = computeHash(password, creds.salt);
                 isMatch = safeCompare(calculatedHash, creds.hash);
             }
         }

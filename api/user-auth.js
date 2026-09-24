@@ -1,4 +1,3 @@
-const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const adminAuth = require('./admin-auth.js');
@@ -330,9 +329,20 @@ function hashPassword(password, salt) {
 }
 
 function verifyPassword(password, hash, salt) {
-    if (!password || !hash || !salt) return false;
-    const verifyHash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-    return safeCompare(hash, verifyHash);
+    if (!password || !hash) return false;
+    try {
+        if (!salt) {
+            const legacyHash = crypto.createHash('sha256').update(password).digest('hex');
+            return safeCompare(hash, legacyHash);
+        }
+        const verifyHash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+        if (safeCompare(hash, verifyHash)) return true;
+        // Fallback in case hash was legacy sha256 with salt present
+        const fallbackSha = crypto.createHash('sha256').update(password).digest('hex');
+        return safeCompare(hash, fallbackSha);
+    } catch (e) {
+        return false;
+    }
 }
 
 function maskIp(ip) {
@@ -1145,6 +1155,7 @@ module.exports = async (req, res) => {
         // POST /api/user-auth?action=logout
         if (action === 'logout') {
             const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.body?.token;
+            db.sessions = db.sessions || {};
             if (token && db.sessions[token]) {
                 delete db.sessions[token];
                 await writeDbAsync(db);
