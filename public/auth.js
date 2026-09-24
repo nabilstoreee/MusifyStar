@@ -135,9 +135,10 @@ var Auth = {
                 if (modalCategory === 'ip' && data && !data.ipBanned && (!data.ban || !data.ban.isIpBanned)) {
                     existingModal.remove();
                 }
-                // If modal was for Account ban, remove only if user is authenticated and explicitly NOT banned
-                else if (modalCategory === 'account' && data && data.authenticated && !data.banned && (!data.ban || !data.ban.isBanned)) {
+                // If modal was for Account ban, remove if server confirms account is not banned
+                else if (modalCategory === 'account' && data && !data.banned && (!data.ban || !data.ban.isBanned)) {
                     existingModal.remove();
+                    try { localStorage.removeItem('musifystar_active_ban'); } catch(e) {}
                 }
             }
 
