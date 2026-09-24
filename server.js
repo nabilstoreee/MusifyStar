@@ -97,7 +97,7 @@ app.use((req, res, next) => {
         res.setHeader('Vary', 'Origin');
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Auth-Token, X-Token, X-User-Id, X-User-Name, X-User-Email');
     res.setHeader('Access-Control-Expose-Headers', '*');
 
     if (req.method === 'OPTIONS') {
