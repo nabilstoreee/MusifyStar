@@ -780,7 +780,11 @@ module.exports = async (req, res) => {
 
         // GET /api/user-auth?action=me
         if (req.method === 'GET' || action === 'me') {
-            const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.query.token;
+            const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') ||
+                          req.headers['x-auth-token'] ||
+                          req.headers['x-token'] ||
+                          req.query.token ||
+                          (req.body && req.body.token);
             const fallbackUserId = String(req.headers['x-user-id'] || req.query.userId || '').trim();
             const fallbackUsername = String(req.headers['x-user-name'] || req.query.username || '').trim().toLowerCase();
             const fallbackEmail = String(req.headers['x-user-email'] || req.query.email || '').trim().toLowerCase();
@@ -841,7 +845,9 @@ module.exports = async (req, res) => {
                     return res.json({
                         status: true,
                         authenticated: false,
+                        unverifiedProbe: true,
                         banned: false,
+                        ban: banStatus,
                         user: null
                     });
                 }
