@@ -71,43 +71,43 @@
         .fill-current { fill: currentColor; }
         .filter-tab.active { background: rgba(255,255,255,0.92) !important; color: black !important; box-shadow: 0 4px 20px rgba(255,255,255,0.15); }
 
-        /* ===== Light-weight Clean Solid Dark Theme Background ===== */
+        /* ===== App Background (Clean Original Dark Theme) ===== */
         .app-bg {
             position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
-            background: #08090d;
+            background-color: #08090d;
         }
-        
-        /* ===== Solid Gray Dark Theme Cards & Base Styles ===== */
+
         .glass-card {
-            background: #20222c;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            background: rgba(26, 30, 42, 0.72);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
             transition: all 0.25s ease;
         }
         .glass-card:hover {
-            background: #282b38;
+            background: rgba(36, 42, 58, 0.88);
             border-color: rgba(255, 255, 255, 0.18);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-        }
-        .glass-dock {
-            background: #1c1e26;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+            transform: translateY(-2px);
         }
 
         .glass {
-            background: #20222c;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.35);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(26, 30, 42, 0.72);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255, 255, 255, 0.09);
             border-radius: 1.25rem;
             transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .glass-hover {
-            transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
+            transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease, border-color 0.3s ease;
         }
         .glass-hover:hover {
-            background: #282b38;
+            background: rgba(36, 42, 58, 0.88);
             transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.18);
         }
         .glass-strong {
             background: var(--bg-color);
@@ -164,6 +164,222 @@
         .artist-photo { width:120px; height:120px; border-radius:50%; object-fit:cover; border:3px solid var(--border-color); box-shadow:var(--nm-shadow-flat); background:var(--bg-color); }
         @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
         .animate-slide-up{animation:slideUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards}
+
+        /* ===== EXACT CODE FROM VIDEO: 4-segment conic gradient on a rotating square ===== */
+        @keyframes neon-rotate {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* The Expanding Box Container */
+        .neon-box-card {
+            position: relative;
+            width: 320px;
+            max-width: 90vw;
+            height: 60px;
+            background: #181b22;
+            border-radius: 22px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s ease;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.85);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* Hover / Expanded State ("Buka") */
+        .neon-box-card:hover,
+        .neon-box-card.expanded,
+        .neon-box-card:focus-within {
+            height: 420px;
+            cursor: default;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.95);
+        }
+
+        /* In register mode when expanded */
+        .neon-box-card.mode-register:hover,
+        .neon-box-card.mode-register.expanded,
+        .neon-box-card.mode-register:focus-within {
+            height: 485px;
+        }
+
+        /* 4-segment conic gradient on rotating square (Transcribed exactly from video) */
+        .neon-box-card::before {
+            content: '';
+            position: absolute;
+            inset: 50%;
+            width: 170vmax;
+            height: 170vmax;
+            translate: -50% -50%;
+            background: conic-gradient(
+                from 0deg,
+                transparent 0deg 36deg,
+                #35eaff 36deg 48deg,
+                transparent 48deg 126deg,
+                #ff10de 126deg 138deg,
+                transparent 138deg 216deg,
+                #35eaff 216deg 228deg,
+                transparent 228deg 306deg,
+                #ff10de 306deg 318deg,
+                transparent 318deg 360deg
+            );
+            filter: blur(1px) drop-shadow(0 0 12px #35eaff);
+            animation: neon-rotate 5s linear infinite;
+            z-index: 1;
+        }
+
+        /* Inner Dark Content Body */
+        .neon-box-card-inner {
+            position: absolute;
+            inset: 3px;
+            background: #141720;
+            border-radius: 19px;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.95);
+        }
+
+        /* Header (in collapsed state it fills the pill, centered) */
+        .neon-header-row,
+        .neon-header-col {
+            height: 54px;
+            min-height: 54px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 0 16px;
+            cursor: pointer;
+            transition: all 0.35s ease;
+        }
+
+        .neon-header-col .neon-header-logo-wrap {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 0;
+            border-width: 1.5px;
+            transition: all 0.35s ease;
+        }
+
+        /* When hovered or expanded: LOGO DI ATAS, NAMA DI BAWAH, LOGO LEBIH BESAR */
+        .neon-box-card:hover .neon-header-col,
+        .neon-box-card.expanded .neon-header-col,
+        .neon-box-card:focus-within .neon-header-col {
+            height: auto;
+            min-height: 98px;
+            flex-direction: column;
+            padding-top: 18px;
+            padding-bottom: 4px;
+            gap: 4px;
+        }
+
+        .neon-box-card:hover .neon-header-col .neon-header-logo-wrap,
+        .neon-box-card.expanded .neon-header-col .neon-header-logo-wrap,
+        .neon-box-card:focus-within .neon-header-col .neon-header-logo-wrap {
+            width: 58px;
+            height: 58px;
+            margin-bottom: 4px;
+            border-width: 2px;
+        }
+
+        .neon-box-card.mode-register:hover .neon-header-col .neon-header-logo-wrap,
+        .neon-box-card.mode-register.expanded .neon-header-col .neon-header-logo-wrap,
+        .neon-box-card.mode-register:focus-within .neon-header-col .neon-header-logo-wrap {
+            box-shadow: 0 0 22px rgba(255, 16, 222, 0.8);
+        }
+
+        /* Form Body (hidden when collapsed, fades in when expanded) */
+        .neon-body-content {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s;
+            pointer-events: none;
+            padding: 0 20px 18px 20px;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .neon-box-card:hover .neon-body-content,
+        .neon-box-card.expanded .neon-body-content,
+        .neon-box-card:focus-within .neon-body-content {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        /* Inputs styled like the video */
+        .neon-v-input {
+            width: 100%;
+            background: #202430;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 9999px;
+            padding: 10px 18px;
+            font-size: 13px;
+            color: #ffffff;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+
+        .neon-v-input::placeholder {
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        .neon-v-input:focus {
+            background: #272c3b;
+            border-color: #35eaff;
+            box-shadow: 0 0 16px rgba(53, 234, 255, 0.35);
+        }
+
+        /* Submit Button styled like the video */
+        .neon-v-btn {
+            width: 100%;
+            padding: 11px;
+            border-radius: 9999px;
+            background: #35eaff;
+            color: #0c121e;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.03em;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 0 18px rgba(53, 234, 255, 0.45);
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .neon-v-btn:hover {
+            background: #56efff;
+            box-shadow: 0 0 28px rgba(53, 234, 255, 0.85);
+            transform: translateY(-1px);
+        }
+
+        .neon-v-btn:active {
+            transform: translateY(1px);
+        }
+
+        .neon-v-btn-reg {
+            background: #ff10de;
+            color: #ffffff;
+            box-shadow: 0 0 18px rgba(255, 16, 222, 0.45);
+        }
+
+        .neon-v-btn-reg:hover {
+            background: #ff3aeb;
+            box-shadow: 0 0 28px rgba(255, 16, 222, 0.85);
+        }
 
 
         /* ===== SPLASH SCREEN - MONOCHROME ===== */
@@ -499,14 +715,17 @@
             transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
-        /* ===== Magic Fluid Curved Navigation Bar (Compact & Video-Accurate) ===== */
+        /* ===== Apple Control Center (Pusat Kontrol Apple) Fluid Navigation Dock ===== */
         .magic-nav-dock {
             position: relative;
             width: 100%;
-            height: 50px;
-            background: #171a24;
-            border-radius: 25px;
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.65);
+            height: 52px;
+            background: rgba(32, 35, 45, 0.65);
+            backdrop-filter: blur(32px) saturate(210%) contrast(100%);
+            -webkit-backdrop-filter: blur(32px) saturate(210%) contrast(100%);
+            border-radius: 9999px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -515,55 +734,38 @@
 
         .magic-indicator {
             position: absolute;
-            top: -15px;
+            top: -12px;
             left: 0;
             width: calc(100% / 6);
-            height: 50px;
+            height: 52px;
             display: flex;
             justify-content: center;
             pointer-events: none;
             z-index: 10;
-            transition: transform 0.42s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            transition: transform 0.4s cubic-bezier(0.25, 1.1, 0.4, 1) !important;
             will-change: transform;
         }
 
+        /* Apple Control Center Active Toggle Capsule */
         .magic-circle {
-            width: 38px;
-            height: 38px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             background: #ffffff;
-            border: 4px solid var(--bg-color, #08090d);
-            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 255, 255, 0.4);
             position: relative;
             z-index: 12;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
-        /* Concave curved notch ears carved into the navbar */
-        .magic-circle::before {
-            content: '';
-            position: absolute;
-            top: 15px;
-            left: -15px;
-            width: 15px;
-            height: 15px;
-            background: transparent;
-            border-top-right-radius: 15px;
-            box-shadow: 1px -7px 0 0 var(--bg-color, #08090d);
-        }
-
+        /* Concave curved notch ears removed for Apple Control Center floating pill aesthetic */
+        .magic-circle::before,
         .magic-circle::after {
-            content: '';
-            position: absolute;
-            top: 15px;
-            right: -15px;
-            width: 15px;
-            height: 15px;
-            background: transparent;
-            border-top-left-radius: 15px;
-            box-shadow: -1px -7px 0 0 var(--bg-color, #08090d);
+            display: none !important;
         }
 
         .magic-circle-icon {
@@ -572,14 +774,14 @@
             justify-content: center;
             width: 100%;
             height: 100%;
-            color: #12141a;
+            color: #0d0f14;
         }
 
         .magic-circle-icon i,
         .magic-circle-icon svg {
             width: 18px;
             height: 18px;
-            stroke-width: 2.3;
+            stroke-width: 2.4;
         }
 
         .magic-tab {
@@ -605,10 +807,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.65);
             opacity: 1;
             transform: translateY(0);
-            transition: opacity 0.25s ease, transform 0.25s ease !important;
+            transition: opacity 0.25s ease, transform 0.25s ease, color 0.2s ease !important;
         }
 
         .magic-tab-icon i,
@@ -619,7 +821,7 @@
         }
 
         .magic-tab:hover .magic-tab-icon {
-            color: rgba(255, 255, 255, 0.9);
+            color: rgba(255, 255, 255, 0.95);
         }
 
         .magic-tab-label {
@@ -628,7 +830,7 @@
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 9px;
+            font-size: 9.5px;
             font-weight: 700;
             letter-spacing: -0.01em;
             color: #ffffff;
@@ -640,6 +842,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             padding: 0 1px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
         }
 
         /* Active Tab State */
@@ -966,18 +1169,18 @@
     <div id="yt-player" style="position:absolute;top:-9999px;left:-9999px;width:1px;height:1px;"></div>
     <audio id="audio-player" preload="auto" style="display:none;"></audio>
 
-    <script src="/player.js?v=26"></script>
-    <script src="/home.js?v=26"></script>
-    <script src="/search.js?v=26"></script>
-    <script src="/liked.js?v=26"></script>
-    <script src="/library.js?v=26"></script>
-    <script src="/auth.js?v=26"></script>
-    <script src="/profile.js?v=26"></script>
-    <script src="/miniplayer.js?v=26"></script>
-    <script src="/fullplayer.js?v=26"></script>
-    <script src="/artist.js?v=26"></script>
-    <script src="/album.js?v=26"></script>
-    <script src="/app.js?v=26"></script>
+    <script src="/player.js?v=27"></script>
+    <script src="/home.js?v=27"></script>
+    <script src="/search.js?v=27"></script>
+    <script src="/liked.js?v=27"></script>
+    <script src="/library.js?v=27"></script>
+    <script src="/auth.js?v=27"></script>
+    <script src="/profile.js?v=27"></script>
+    <script src="/miniplayer.js?v=27"></script>
+    <script src="/fullplayer.js?v=27"></script>
+    <script src="/artist.js?v=27"></script>
+    <script src="/album.js?v=27"></script>
+    <script src="/app.js?v=27"></script>
     <script>(function () {
   document.addEventListener('visibilitychange', function () {
     document.documentElement.classList.toggle('tab-hidden', document.hidden);

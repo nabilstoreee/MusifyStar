@@ -191,30 +191,18 @@ var Auth = {
             }
         });
 
-        // Also update bottom navigation profile tab icon if user is logged in
+        // Ensure bottom navigation dev tab retains code icon
         var navDev = gid('nav-dev');
         if (navDev) {
             var iconWrap = navDev.querySelector('.magic-tab-icon');
             if (iconWrap) {
-                if (Auth.currentUser && Auth.currentUser.avatar) {
-                    iconWrap.innerHTML = '<img src="' + Auth.currentUser.avatar + '" class="w-5 h-5 rounded-full object-cover border border-white/40" alt="Avatar" onerror="this.outerHTML=\'<i data-lucide=\\\'user\\\'></i>\'">';
-                } else {
-                    iconWrap.innerHTML = '<i data-lucide="user"></i>';
-                }
+                iconWrap.innerHTML = '<i data-lucide="code"></i>';
             }
         }
 
         // Re-render Profile page if it is currently displayed
         if (typeof Profile !== 'undefined' && typeof Profile.render === 'function' && typeof S !== 'undefined' && S.at === 'dev') {
             Profile.render();
-            var circleIcon = gid('magic-circle-icon');
-            if (circleIcon) {
-                if (Auth.currentUser && Auth.currentUser.avatar) {
-                    circleIcon.innerHTML = '<img src="' + Auth.currentUser.avatar + '" class="w-full h-full rounded-full object-cover" alt="Avatar" onerror="this.outerHTML=\'<i data-lucide=\\\'user\\\'></i>\'">';
-                } else {
-                    circleIcon.innerHTML = '<i data-lucide="user"></i>';
-                }
-            }
         }
 
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -231,23 +219,56 @@ var Auth = {
 
         var wrapper = document.createElement('div');
         wrapper.id = 'header-auth-dropdown-wrapper';
-        wrapper.className = 'fixed inset-0 z-50 flex justify-end items-start pt-16 pr-4 sm:pr-8 animate-fadeIn pointer-events-auto';
-        wrapper.innerHTML = `
-            <!-- Backdrop click to dismiss -->
-            <div onclick="gid('header-auth-dropdown-wrapper')?.remove()" class="fixed inset-0 bg-black/40 backdrop-blur-[2px]"></div>
 
-            <!-- Floating Card Anchored Under Profile Button -->
-            <div class="relative z-10 w-[92vw] max-w-[340px] bg-[#12141c]/95 backdrop-blur-2xl border border-white/20 rounded-3xl p-5 shadow-2xl shadow-black/80 text-left transition-all duration-300 transform scale-100 origin-top-right">
-                <!-- Close Button -->
-                <button onclick="gid('header-auth-dropdown-wrapper')?.remove()" class="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition active:scale-95 cursor-pointer">
+        // When user is not logged in: present the exact Hover Expanding Neon Conic Gradient Modal from the video
+        if (!Auth.currentUser) {
+            wrapper.className = 'fixed inset-0 z-[700] flex items-center justify-center p-4 animate-fadeIn pointer-events-auto';
+            wrapper.innerHTML = `
+                <!-- Backdrop click to dismiss -->
+                <div onclick="gid('header-auth-dropdown-wrapper')?.remove()" class="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"></div>
+
+                <!-- Floating Close Button at top right of screen -->
+                <button onclick="gid('header-auth-dropdown-wrapper')?.remove()" class="fixed top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white/70 hover:text-white transition active:scale-95 cursor-pointer z-40" title="Tutup">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
 
-                <div id="header-auth-content">
-                    ${Auth.currentUser ? Auth.getLoggedInDropdownHTML() : Auth.getFormHTML('header-')}
+                <!-- Centered Hover Expanding Card -->
+                <div class="relative z-10 flex flex-col items-center">
+                    <div id="neon-login-box" class="neon-box-card expanded ${Auth.mode === 'register' ? 'mode-register' : ''}" onclick="Auth.toggleCardExpand(event)">
+                        <!-- Inner dark box -->
+                        <div class="neon-box-card-inner">
+                            <div id="header-auth-content" class="w-full h-full flex flex-col">
+                                ${Auth.getFormHTML('header-')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hint below card -->
+                    <p class="text-white/40 text-[11px] mt-4 font-medium select-none pointer-events-none transition-opacity duration-300">
+                        Arahkan kursor atau sentuh untuk buka / tutup
+                    </p>
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            // When user is already logged in: present the top-right anchored profile dropdown
+            wrapper.className = 'fixed inset-0 z-50 flex justify-end items-start pt-16 pr-4 sm:pr-8 animate-fadeIn pointer-events-auto';
+            wrapper.innerHTML = `
+                <!-- Backdrop click to dismiss -->
+                <div onclick="gid('header-auth-dropdown-wrapper')?.remove()" class="fixed inset-0 bg-black/40 backdrop-blur-[2px]"></div>
+
+                <!-- Floating Card Anchored Under Profile Button -->
+                <div class="relative z-10 w-[92vw] max-w-[340px] bg-[#12141c]/95 backdrop-blur-2xl border border-white/20 rounded-3xl p-5 shadow-2xl shadow-black/80 text-left transition-all duration-300 transform scale-100 origin-top-right">
+                    <!-- Close Button -->
+                    <button onclick="gid('header-auth-dropdown-wrapper')?.remove()" class="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition active:scale-95 cursor-pointer">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+
+                    <div id="header-auth-content">
+                        ${Auth.getLoggedInDropdownHTML()}
+                    </div>
+                </div>
+            `;
+        }
 
         document.body.appendChild(wrapper);
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -255,10 +276,40 @@ var Auth = {
         }
     },
 
+    toggleCardExpand(e) {
+        if (e && e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('input') || e.target.closest('form'))) {
+            return;
+        }
+        var box = gid('neon-login-box');
+        if (box) {
+            box.classList.toggle('expanded');
+        }
+    },
+
+    openLoginModal(mode) {
+        if (mode) Auth.mode = mode;
+        if (Auth.currentUser) {
+            Auth.openUserProfileModal();
+            return;
+        }
+        var existing = gid('header-auth-dropdown-wrapper');
+        if (existing) existing.remove();
+        Auth.toggleTopDropdown();
+    },
+
     setMode(mode, prefix) {
         Auth.mode = mode;
         Auth.isPasswordVisible = false;
         var p = prefix || 'header-';
+        var box = gid('neon-login-box');
+        if (box) {
+            if (mode === 'register') {
+                box.classList.add('mode-register');
+            } else {
+                box.classList.remove('mode-register');
+            }
+            box.classList.add('expanded');
+        }
         var container = gid('header-auth-content');
         if (container) {
             container.innerHTML = Auth.getFormHTML(p);
@@ -288,136 +339,105 @@ var Auth = {
         prefix = prefix || 'header-';
         if (Auth.mode === 'login') {
             return `
-            <div>
-                <!-- Header -->
-                <div class="flex items-center gap-2.5 mb-4 pr-6">
-                    <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
-                        <i data-lucide="log-in" class="w-4 h-4"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-white font-bold text-base tracking-tight leading-tight">Login Akun</h3>
-                        <p class="text-white/50 text-[10px]">Masuk ke akun MusifyStar Anda</p>
-                    </div>
+            <!-- Header (Logo on top, Name below logo) -->
+            <div class="neon-header-col select-none" title="Klik untuk buka / tutup">
+                <!-- Logo Di Atas (Besar & Jelas) -->
+                <div class="neon-header-logo-wrap w-14 h-14 rounded-full overflow-hidden shadow-[0_0_18px_rgba(0,56,255,0.7)] border-2 border-[#35eaff]/50 p-1 bg-black/60 flex items-center justify-center shrink-0 mb-1 transition-all duration-300">
+                    <img src="/auth-logo.svg" alt="Logo" class="w-full h-full object-contain" onerror="this.src='/auth-logo.png'">
                 </div>
+                <!-- Nama Di Bawah Logo -->
+                <div class="flex items-center gap-1.5 justify-center">
+                    <span class="font-black text-sm tracking-widest text-white uppercase">LOGIN</span>
+                    <span class="text-[#35eaff] flex items-center shrink-0">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                    </span>
+                </div>
+            </div>
 
-                <form onsubmit="Auth.handleLogin(event, '${prefix}')" class="space-y-3">
-                    <!-- Username -->
+            <!-- Expanding Content (fades in on hover / open) -->
+            <div class="neon-body-content">
+                <form onsubmit="Auth.handleLogin(event, '${prefix}')" class="w-full space-y-3 pt-1">
+                    <!-- Username field -->
                     <div>
-                        <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center gap-1.5">
-                            <i data-lucide="user" class="w-3.5 h-3.5 text-sky-400"></i> Username
-                        </label>
-                        <input type="text" id="${prefix}auth-login-username" required placeholder="Masukkan username" class="w-full bg-black/50 border border-white/15 focus:border-sky-400 focus:ring-1 focus:ring-sky-400 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
+                        <input type="text" id="${prefix}auth-login-username" required placeholder="Username" autocomplete="username" class="neon-v-input">
                     </div>
 
-                    <!-- Email -->
-                    <div>
-                        <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center gap-1.5">
-                            <i data-lucide="mail" class="w-3.5 h-3.5 text-emerald-400"></i> Email
-                        </label>
-                        <input type="email" id="${prefix}auth-login-email" required placeholder="contoh@email.com" class="w-full bg-black/50 border border-white/15 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
+                    <!-- Password field with eye toggle -->
+                    <div class="relative flex items-center">
+                        <input type="password" id="${prefix}auth-login-password" minlength="6" required placeholder="Password" autocomplete="current-password" class="neon-v-input pr-10">
+                        <button type="button" onclick="Auth.togglePassword('${prefix}auth-login-password', '${prefix}auth-login-eye-icon')" class="absolute right-3.5 text-white/40 hover:text-[#35eaff] active:scale-95 transition cursor-pointer" title="Lihat/Sembunyikan Password">
+                            <i id="${prefix}auth-login-eye-icon" data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
                     </div>
 
-                    <!-- Password 6 huruf ada tombol mata -->
-                    <div>
-                        <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center justify-between">
-                            <span class="flex items-center gap-1.5">
-                                <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i> Password (min 6 huruf)
-                            </span>
-                        </label>
-                        <div class="relative flex items-center">
-                            <input type="password" id="${prefix}auth-login-password" minlength="6" required placeholder="Minimal 6 karakter" class="w-full bg-black/50 border border-white/15 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl pl-3 pr-9 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
-                            <button type="button" onclick="Auth.togglePassword('${prefix}auth-login-password', '${prefix}auth-login-eye-icon')" class="absolute right-2 p-1 text-white/60 hover:text-white active:scale-95 transition-all cursor-pointer" title="Lihat / Sembunyikan Password">
-                                <i id="${prefix}auth-login-eye-icon" data-lucide="eye" class="w-3.5 h-3.5"></i>
-                            </button>
-                        </div>
+                    <!-- Sign in Button (Vivid Cyan pill button from video) -->
+                    <div class="pt-1">
+                        <button type="submit" id="${prefix}auth-login-btn" class="neon-v-btn">
+                            <span>login disini</span>
+                        </button>
                     </div>
 
-                    <!-- Simpan Login (Remember me) -->
-                    <div class="flex items-center justify-between pt-0.5">
-                        <label class="flex items-center gap-2 cursor-pointer select-none group">
-                            <input type="checkbox" id="${prefix}auth-login-remember" checked class="w-3.5 h-3.5 rounded bg-black/50 border-white/20 text-sky-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-sky-500">
-                            <span class="text-[11px] text-white/80 group-hover:text-white transition-colors">Simpan login</span>
-                        </label>
-                    </div>
-
-                    <!-- Tombol Submit -->
-                    <button type="submit" id="${prefix}auth-login-btn" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-500 hover:opacity-95 active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-sky-500/25 cursor-pointer mt-1">
-                        <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
-                        <span>Login</span>
-                    </button>
-
-                    <!-- Belum punya akun? daftar disini -->
-                    <div class="text-center pt-2 border-t border-white/10">
-                        <p class="text-[11px] text-white/60">
-                            Belum punya akun? 
-                            <button type="button" onclick="Auth.setMode('register', '${prefix}')" class="text-sky-400 hover:text-sky-300 font-bold underline cursor-pointer ml-1 active:scale-95 transition-all">
-                                daftar disini
-                            </button>
-                        </p>
+                    <!-- Footer Links: Forgot Password & Sign up -->
+                    <div class="flex items-center justify-between text-xs px-1 pt-1 select-none">
+                        <span class="text-white/60 hover:text-white hover:underline cursor-pointer transition">Belum punya akun?</span>
+                        <button type="button" onclick="Auth.setMode('register', '${prefix}')" class="text-[#ff10de] hover:text-[#ff3aeb] font-bold cursor-pointer transition">
+                            daftar disini
+                        </button>
                     </div>
                 </form>
             </div>
             `;
         } else {
             return `
-            <div>
-                <!-- Header -->
-                <div class="flex items-center gap-2.5 mb-4 pr-6">
-                    <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-                        <i data-lucide="user-plus" class="w-4 h-4"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-white font-bold text-base tracking-tight leading-tight">Daftar Akun</h3>
-                        <p class="text-white/50 text-[10px]">Buat akun baru MusifyStar</p>
-                    </div>
+            <!-- Header (Logo on top, Name below logo) -->
+            <div class="neon-header-col select-none" title="Klik untuk buka / tutup">
+                <!-- Logo Di Atas (Besar & Jelas) -->
+                <div class="neon-header-logo-wrap w-14 h-14 rounded-full overflow-hidden shadow-[0_0_18px_rgba(255,16,222,0.7)] border-2 border-[#ff10de]/50 p-1 bg-black/60 flex items-center justify-center shrink-0 mb-1 transition-all duration-300">
+                    <img src="/auth-logo.svg" alt="Logo" class="w-full h-full object-contain" onerror="this.src='/auth-logo.png'">
                 </div>
+                <!-- Nama Di Bawah Logo -->
+                <div class="flex items-center gap-1.5 justify-center">
+                    <span class="font-black text-sm tracking-widest text-white uppercase">REGISTER</span>
+                    <span class="text-[#ff10de] flex items-center shrink-0">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                    </span>
+                </div>
+            </div>
 
-                <form onsubmit="Auth.handleRegister(event, '${prefix}')" class="space-y-3">
-                    <!-- Username -->
+            <!-- Expanding Content (fades in on hover / open) -->
+            <div class="neon-body-content">
+                <form onsubmit="Auth.handleRegister(event, '${prefix}')" class="w-full space-y-3 pt-1">
+                    <!-- Username field -->
                     <div>
-                        <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center gap-1.5">
-                            <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> Username
-                        </label>
-                        <input type="text" id="${prefix}auth-reg-username" required placeholder="Pilih username baru" class="w-full bg-black/50 border border-white/15 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
+                        <input type="text" id="${prefix}auth-reg-username" required placeholder="Username" autocomplete="username" class="neon-v-input">
                     </div>
 
-                    <!-- Email -->
+                    <!-- Email field -->
                     <div>
-                        <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center gap-1.5">
-                            <i data-lucide="mail" class="w-3.5 h-3.5 text-sky-400"></i> Email
-                        </label>
-                        <input type="email" id="${prefix}auth-reg-email" required placeholder="contoh@email.com" class="w-full bg-black/50 border border-white/15 focus:border-sky-400 focus:ring-1 focus:ring-sky-400 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
+                        <input type="email" id="${prefix}auth-reg-email" required placeholder="Email Address" autocomplete="email" class="neon-v-input">
                     </div>
 
-                    <!-- Password 6 huruf ada tombol mata -->
-                    <div>
-                        <label class="block text-[11px] font-semibold text-white/80 mb-1 flex items-center justify-between">
-                            <span class="flex items-center gap-1.5">
-                                <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i> Password (min 6 huruf)
-                            </span>
-                        </label>
-                        <div class="relative flex items-center">
-                            <input type="password" id="${prefix}auth-reg-password" minlength="6" required placeholder="Minimal 6 karakter" class="w-full bg-black/50 border border-white/15 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-xl pl-3 pr-9 py-2 text-xs text-white placeholder-white/30 outline-none transition-all">
-                            <button type="button" onclick="Auth.togglePassword('${prefix}auth-reg-password', '${prefix}auth-reg-eye-icon')" class="absolute right-2 p-1 text-white/60 hover:text-white active:scale-95 transition-all cursor-pointer" title="Lihat / Sembunyikan Password">
-                                <i id="${prefix}auth-reg-eye-icon" data-lucide="eye" class="w-3.5 h-3.5"></i>
-                            </button>
-                        </div>
+                    <!-- Password field with eye toggle -->
+                    <div class="relative flex items-center">
+                        <input type="password" id="${prefix}auth-reg-password" minlength="6" required placeholder="Password" autocomplete="new-password" class="neon-v-input pr-10">
+                        <button type="button" onclick="Auth.togglePassword('${prefix}auth-reg-password', '${prefix}auth-reg-eye-icon')" class="absolute right-3.5 text-white/40 hover:text-[#ff10de] active:scale-95 transition cursor-pointer" title="Lihat/Sembunyikan Password">
+                            <i id="${prefix}auth-reg-eye-icon" data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
                     </div>
 
-                    <!-- Tombol Submit -->
-                    <button type="submit" id="${prefix}auth-reg-btn" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 hover:opacity-95 active:scale-98 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-emerald-500/25 cursor-pointer mt-1">
-                        <i data-lucide="user-check" class="w-3.5 h-3.5"></i>
-                        <span>Daftar Akun</span>
-                    </button>
+                    <!-- Sign up Button (Vivid Magenta pill button) -->
+                    <div class="pt-1">
+                        <button type="submit" id="${prefix}auth-reg-btn" class="neon-v-btn neon-v-btn-reg">
+                            <span>Sign up</span>
+                        </button>
+                    </div>
 
-                    <!-- Udah punya akun? login disini -->
-                    <div class="text-center pt-2 border-t border-white/10">
-                        <p class="text-[11px] text-white/60">
-                            Udah punya akun? 
-                            <button type="button" onclick="Auth.setMode('login', '${prefix}')" class="text-emerald-400 hover:text-emerald-300 font-bold underline cursor-pointer ml-1 active:scale-95 transition-all">
-                                login disini
-                            </button>
-                        </p>
+                    <!-- Footer Links: Back to Sign in -->
+                    <div class="flex items-center justify-between text-xs px-1 pt-1 select-none">
+                        <span class="text-white/60">Sudah Punya Akun?</span>
+                        <button type="button" onclick="Auth.setMode('login', '${prefix}')" class="text-[#35eaff] hover:text-[#56efff] font-bold cursor-pointer transition">
+                            login disini
+                        </button>
                     </div>
                 </form>
             </div>
@@ -525,7 +545,8 @@ var Auth = {
         if (!u) return '';
         var joinDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Baru saja';
         var isVerified = ((u.email || '').toLowerCase().trim() === 'jrnabil570@gmail.com');
-        return `
+            var hasAdmin = !!(sessionStorage.getItem('musifystar_admin_token') || localStorage.getItem('musifystar_admin_token'));
+            return `
         <div>
             <div class="flex items-center gap-3 pb-3 border-b border-white/10 pr-6">
                 <div class="relative w-11 h-11 rounded-full overflow-hidden shrink-0">
@@ -554,10 +575,15 @@ var Auth = {
             </div>
 
             <div class="pt-2.5 border-t border-white/10 space-y-2">
-                <button onclick="gid('header-auth-dropdown-wrapper')?.remove(); if(typeof App !== 'undefined' && App.switch) App.switch('dev'); Auth.openUserProfileModal();" class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-sky-500/20 to-indigo-500/20 hover:from-sky-500/30 hover:to-indigo-500/30 border border-sky-500/30 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm">
+                <button onclick="gid('header-auth-dropdown-wrapper')?.remove(); Auth.openUserProfileModal();" class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-sky-500/20 to-indigo-500/20 hover:from-sky-500/30 hover:to-indigo-500/30 border border-sky-500/30 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm">
                     <i data-lucide="user-pen" class="w-3.5 h-3.5 text-sky-400"></i>
                     <span>Buka Halaman Profil (Edit Profil)</span>
                 </button>
+                ${hasAdmin ? `
+                <button onclick="gid('header-auth-dropdown-wrapper')?.remove(); if(typeof Profile !== 'undefined') Profile.openAdminModal();" class="w-full py-2 px-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-purple-400"></i>
+                    <span>Panel Admin</span>
+                </button>` : ''}
                 <button onclick="Auth.logout()" class="w-full py-2 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
                     <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
                     <span>Keluar Akun</span>
@@ -1005,15 +1031,19 @@ var Auth = {
     async handleLogin(e, prefix) {
         if (e && e.preventDefault) e.preventDefault();
         prefix = prefix || 'header-';
-        var username = (gid(prefix + 'auth-login-username')?.value || '').trim();
+        var userInput = (gid(prefix + 'auth-login-username')?.value || '').trim();
         var email = (gid(prefix + 'auth-login-email')?.value || '').trim();
+        var username = userInput;
+        if (!email && userInput.includes('@')) {
+            email = userInput;
+        }
         var password = (gid(prefix + 'auth-login-password')?.value || '').trim();
-        var remember = gid(prefix + 'auth-login-remember')?.checked !== false;
+        var remember = true;
 
         var btn = gid(prefix + 'auth-login-btn');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Memproses...</span>';
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Signing in...</span>';
             if (window.lucide && typeof window.lucide.createIcons === 'function') try{ window.lucide.createIcons(); }catch(err){}
         }
 
@@ -1072,7 +1102,7 @@ var Auth = {
         } finally {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="log-in" class="w-3.5 h-3.5"></i><span>Login</span>';
+                btn.innerHTML = '<span>login disini</span>';
                 if (window.lucide && typeof window.lucide.createIcons === 'function') try{ window.lucide.createIcons(); }catch(err){}
             }
         }
@@ -1093,7 +1123,7 @@ var Auth = {
         var btn = gid(prefix + 'auth-reg-btn');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Mendaftarkan...</span>';
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Signing up...</span>';
             if (window.lucide && typeof window.lucide.createIcons === 'function') try{ window.lucide.createIcons(); }catch(err){}
         }
 
@@ -1120,7 +1150,7 @@ var Auth = {
         } finally {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="user-check" class="w-3.5 h-3.5"></i><span>Daftar Akun</span>';
+                btn.innerHTML = '<span>Sign up</span>';
                 if (window.lucide && typeof window.lucide.createIcons === 'function') try{ window.lucide.createIcons(); }catch(err){}
             }
         }

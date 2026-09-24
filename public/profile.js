@@ -22,82 +22,11 @@ var Profile = {
         if (!el) return;
         Profile.fetchAppVersion();
 
-        var u = (window.Auth && Auth.currentUser) ? Auth.currentUser : null;
-        var isVerified = u && ((u.email || '').toLowerCase().trim() === 'jrnabil570@gmail.com');
-        var joinDate = (u && u.createdAt) ? new Date(u.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : '24 Sep 2026';
-        var hasAdmin = !!(sessionStorage.getItem('musifystar_admin_token') || localStorage.getItem('musifystar_admin_token'));
-
-        var userSectionHtml = '';
-        if (u) {
-            userSectionHtml = `
-            <div class="glass-strong rounded-3xl p-5 max-w-sm mx-auto text-left mb-6 border border-white/20 shadow-2xl relative overflow-hidden bg-gradient-to-b from-white/10 via-[#131622] to-[#0c0e15] backdrop-blur-2xl">
-                <div class="flex items-center gap-3.5 mb-4">
-                    <div class="relative w-16 h-16 rounded-2xl p-0.5 bg-gradient-to-tr from-sky-400 via-indigo-500 to-purple-600 shadow-xl shrink-0 cursor-pointer active:scale-95 transition-transform" onclick="Auth.openUserProfileModal()" title="Ubah Foto & Profil">
-                        <img src="${u.avatar || '/logo.png'}" class="w-full h-full object-cover rounded-[14px]" alt="Avatar" onerror="this.src='/logo.png'" />
-                        <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#0d0f17] border border-white/30 text-sky-400 flex items-center justify-center shadow-lg">
-                            <i data-lucide="camera" class="w-3.5 h-3.5"></i>
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <h2 class="text-white font-black text-lg leading-tight truncate">${es(u.username)}</h2>
-                            ${isVerified && window.Auth ? `<span class="global-verified-badge-container">${Auth.getVerifiedBadgeHTML()}</span>` : ''}
-                        </div>
-                        <p class="text-white/60 text-xs truncate mt-0.5">${es(u.email)}</p>
-                        <div class="flex items-center gap-2 mt-1.5 text-[11px]">
-                            <span class="text-emerald-400 font-bold flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Member Aktif
-                            </span>
-                            <span class="text-white/30">•</span>
-                            <span class="text-white/60">Bergabung ${joinDate}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="pt-3 border-t border-white/10 space-y-2">
-                    <button onclick="Auth.openUserProfileModal()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500/25 to-indigo-500/25 hover:from-sky-500/35 hover:to-indigo-500/35 border border-sky-500/35 text-white font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md cursor-pointer">
-                        <i data-lucide="user-pen" class="w-4 h-4 text-sky-400"></i>
-                        <span>Buka Halaman Profil (Edit Profil)</span>
-                    </button>
-                    <div class="flex gap-2">
-                        ${hasAdmin ? `
-                        <button onclick="Profile.openAdminModal()" class="flex-1 py-2.5 px-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
-                            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-purple-400"></i>
-                            <span>Panel Admin</span>
-                        </button>` : ''}
-                        <button onclick="Auth.logout()" class="${hasAdmin ? 'flex-1' : 'w-full'} py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
-                            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
-                            <span>Keluar Akun</span>
-                        </button>
-                    </div>
-                </div>
-            </div>`;
-        } else {
-            userSectionHtml = `
-            <div class="glass-strong rounded-3xl p-5 max-w-sm mx-auto text-left mb-6 border border-white/20 shadow-xl bg-gradient-to-b from-white/10 via-[#131622] to-[#0c0e15] backdrop-blur-2xl">
-                <div class="flex items-center gap-3.5 mb-3.5">
-                    <div class="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white/80 shrink-0">
-                        <i data-lucide="user" class="w-6 h-6"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-white font-extrabold text-base leading-tight">Akun Pengguna MusifyStar</h3>
-                        <p class="text-white/60 text-xs mt-0.5">Masuk untuk simpan lagu & atur profil</p>
-                    </div>
-                </div>
-                <button onclick="Auth.toggleTopDropdown()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-500/30 cursor-pointer">
-                    <i data-lucide="log-in" class="w-4 h-4"></i>
-                    <span>Masuk atau Daftar Akun</span>
-                </button>
-            </div>`;
-        }
-
         el.innerHTML = `
         <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(13, 15, 22, 0.88) 0%, rgba(13, 15, 22, 0.97) 100%), url('/banner.png') center/cover no-repeat; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
-            <h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">Profil</h1>
+            <h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">Developer</h1>
         </div>
         <div class="pt-6 px-4 text-center">
-            ${userSectionHtml}
-
             <div class="relative w-20 h-20 rounded-full mx-auto mb-3 glass-strong shine-sweep flex items-center justify-center overflow-hidden shadow-black/50">
                 <i data-lucide="music" class="w-10 h-10 text-white/60 absolute"></i>
                 <img src="/logo.png" class="absolute inset-0 w-full h-full object-cover" onerror="this.style.display='none'" />

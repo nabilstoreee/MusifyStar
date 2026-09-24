@@ -703,9 +703,9 @@ var App={
                     <div class="magic-tab-icon"><i data-lucide="heart"></i></div>
                     <span class="magic-tab-label">Liked</span>
                 </button>
-                <button onclick="App.switch('dev')" id="nav-dev" class="magic-tab" aria-label="Profile">
-                    <div class="magic-tab-icon"><i data-lucide="user"></i></div>
-                    <span class="magic-tab-label">Profile</span>
+                <button onclick="App.switch('dev')" id="nav-dev" class="magic-tab" aria-label="Dev">
+                    <div class="magic-tab-icon"><i data-lucide="code"></i></div>
+                    <span class="magic-tab-label">Dev</span>
                 </button>
             </div>
         </div>`;
@@ -911,7 +911,7 @@ var App={
             library: 'library',
             offline: 'wifi-off',
             liked: 'heart',
-            dev: 'user'
+            dev: 'code'
         };
         var activeIdx = navTabs.indexOf(t);
         var indicator = gid('magic-indicator');
@@ -921,11 +921,7 @@ var App={
 
         var circleIcon = gid('magic-circle-icon');
         if (circleIcon && tabIcons[t]) {
-            if (t === 'dev' && window.Auth && Auth.currentUser && Auth.currentUser.avatar) {
-                circleIcon.innerHTML = '<img src="' + Auth.currentUser.avatar + '" class="w-full h-full rounded-full object-cover" alt="Avatar" onerror="this.outerHTML=\'<i data-lucide=\\\'user\\\'></i>\'">';
-            } else {
-                circleIcon.innerHTML = '<i data-lucide="' + tabIcons[t] + '"></i>';
-            }
+            circleIcon.innerHTML = '<i data-lucide="' + tabIcons[t] + '"></i>';
         }
 
         navTabs.forEach(function(n){
