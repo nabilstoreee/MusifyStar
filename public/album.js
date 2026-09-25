@@ -36,6 +36,7 @@ var Album = {
         var url=location.origin+'/album/'+id;
         history.pushState({},'',url);
         gid('album-modal').style.display='flex';
+        if (typeof MP !== 'undefined' && MP.updatePosition) MP.updatePosition();
         gid('album-content').innerHTML = `
         <div class="flex justify-center mt-32">
             <div class="w-10 h-10 border-3 border-[#cfd3d8] border-t-transparent rounded-full animate-spin"></div>
@@ -248,6 +249,7 @@ var Album = {
         gid('album-content').innerHTML = '';
         Album.currentAlbumId = null;
         Album.currentAlbumInfo = null;
+        if (typeof MP !== 'undefined' && MP.updatePosition) MP.updatePosition();
         if (typeof S !== 'undefined' && S.ct && S.ct.title && S.ct.cover) {
             if (typeof updateOG === 'function') updateOG(S.ct.title, S.ct.cover, S.ct.artist);
         } else {

@@ -1,7 +1,7 @@
 var MP={
     init(){
         gid('mini-container').innerHTML=`
-        <div id="mini-player" class="hidden fixed left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-[160]" style="bottom:80px;transition:transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);will-change:transform;transform:translate3d(0,150px,0);">
+        <div id="mini-player" class="hidden fixed left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-[160]" style="bottom:78px;transition:transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), bottom 0.25s ease;will-change:transform, bottom;transform:translate3d(0,150px,0);">
             <div id="mini-player-inner" onclick="FullPlayer.open()" class="rounded-2xl px-3.5 py-2.5 flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-all relative overflow-hidden bg-white/[0.12] backdrop-blur-2xl border border-white/20 shadow-2xl group">
                 
                 <!-- Overlay for Next Song Transition (AutoNext last 10s) -->
@@ -74,12 +74,24 @@ var MP={
         }
         MP.hide();
     },
+    updatePosition(){
+        var mp=gid('mini-player');
+        if(!mp) return;
+        var isModalOpen = (gid('album-modal') && gid('album-modal').style.display !== 'none') ||
+                          (gid('artist-modal') && gid('artist-modal').style.display !== 'none');
+        if(isModalOpen){
+            mp.style.bottom = '16px';
+        } else {
+            mp.style.bottom = '78px';
+        }
+    },
     show(){
         if (!S || !S.ct || (!S.ct.id && !S.ct.videoId && !S.ct.title)) {
             return;
         }
         var mp=gid('mini-player');
         if(!mp) return;
+        MP.updatePosition();
         mp.classList.remove('hidden');
         void mp.offsetHeight;
         mp.style.transform='translate3d(0,0,0)';

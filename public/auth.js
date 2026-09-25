@@ -234,7 +234,7 @@ var Auth = {
 
                 <!-- Centered Hover Expanding Card -->
                 <div class="relative z-10 flex flex-col items-center">
-                    <div id="neon-login-box" class="neon-box-card expanded ${Auth.mode === 'register' ? 'mode-register' : ''}" onclick="Auth.toggleCardExpand(event)">
+                    <div id="neon-login-box" class="neon-box-card ${Auth.mode === 'register' ? 'mode-register' : ''}" onclick="Auth.toggleCardExpand(event)">
                         <!-- Inner dark box -->
                         <div class="neon-box-card-inner">
                             <div id="header-auth-content" class="w-full h-full flex flex-col">
@@ -339,19 +339,12 @@ var Auth = {
         prefix = prefix || 'header-';
         if (Auth.mode === 'login') {
             return `
-            <!-- Header (Logo on top, Name below logo) -->
-            <div class="neon-header-col select-none" title="Klik untuk buka / tutup">
-                <!-- Logo Di Atas (Besar & Jelas) -->
-                <div class="neon-header-logo-wrap w-14 h-14 rounded-full overflow-hidden shadow-[0_0_18px_rgba(0,56,255,0.7)] border-2 border-[#35eaff]/50 p-1 bg-black/60 flex items-center justify-center shrink-0 mb-1 transition-all duration-300">
-                    <img src="/auth-logo.svg" alt="Logo" class="w-full h-full object-contain" onerror="this.src='/auth-logo.png'">
-                </div>
-                <!-- Nama Di Bawah Logo -->
-                <div class="flex items-center gap-1.5 justify-center">
-                    <span class="font-black text-sm tracking-widest text-white uppercase">LOGIN</span>
-                    <span class="text-[#35eaff] flex items-center shrink-0">
-                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
-                    </span>
-                </div>
+            <!-- Header (Visible in compact pill, centered) -->
+            <div class="neon-header-row select-none justify-center gap-2" title="Klik untuk buka / tutup">
+                <span class="font-black text-sm tracking-widest text-white uppercase">LOGIN</span>
+                <span class="text-[#35eaff] flex items-center shrink-0">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                </span>
             </div>
 
             <!-- Expanding Content (fades in on hover / open) -->
@@ -373,13 +366,13 @@ var Auth = {
                     <!-- Sign in Button (Vivid Cyan pill button from video) -->
                     <div class="pt-1">
                         <button type="submit" id="${prefix}auth-login-btn" class="neon-v-btn">
-                            <span>login disini</span>
+                            <span>LOGIN AKUN</span>
                         </button>
                     </div>
 
                     <!-- Footer Links: Forgot Password & Sign up -->
                     <div class="flex items-center justify-between text-xs px-1 pt-1 select-none">
-                        <span class="text-white/60 hover:text-white hover:underline cursor-pointer transition">Belum punya akun?</span>
+                        <span class="text-white/60 hover:text-white hover:underline cursor-pointer transition">belum ada aku?</span>
                         <button type="button" onclick="Auth.setMode('register', '${prefix}')" class="text-[#ff10de] hover:text-[#ff3aeb] font-bold cursor-pointer transition">
                             daftar disini
                         </button>
@@ -389,19 +382,15 @@ var Auth = {
             `;
         } else {
             return `
-            <!-- Header (Logo on top, Name below logo) -->
-            <div class="neon-header-col select-none" title="Klik untuk buka / tutup">
-                <!-- Logo Di Atas (Besar & Jelas) -->
-                <div class="neon-header-logo-wrap w-14 h-14 rounded-full overflow-hidden shadow-[0_0_18px_rgba(255,16,222,0.7)] border-2 border-[#ff10de]/50 p-1 bg-black/60 flex items-center justify-center shrink-0 mb-1 transition-all duration-300">
-                    <img src="/auth-logo.svg" alt="Logo" class="w-full h-full object-contain" onerror="this.src='/auth-logo.png'">
-                </div>
-                <!-- Nama Di Bawah Logo -->
-                <div class="flex items-center gap-1.5 justify-center">
-                    <span class="font-black text-sm tracking-widest text-white uppercase">REGISTER</span>
-                    <span class="text-[#ff10de] flex items-center shrink-0">
-                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
-                    </span>
-                </div>
+            <!-- Header (Visible in compact pill, centered) -->
+            <div class="neon-header-row select-none" title="Klik untuk buka / tutup">
+                <span class="text-[#35eaff] flex items-center shrink-0">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                </span>
+                <span class="font-black text-sm tracking-widest text-white uppercase">REGISTER</span>
+                <span class="text-[#ff10de] flex items-center shrink-0">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                </span>
             </div>
 
             <!-- Expanding Content (fades in on hover / open) -->
@@ -428,13 +417,13 @@ var Auth = {
                     <!-- Sign up Button (Vivid Magenta pill button) -->
                     <div class="pt-1">
                         <button type="submit" id="${prefix}auth-reg-btn" class="neon-v-btn neon-v-btn-reg">
-                            <span>Sign up</span>
+                            <span>DAFTARKAN AKUN</span>
                         </button>
                     </div>
 
                     <!-- Footer Links: Back to Sign in -->
                     <div class="flex items-center justify-between text-xs px-1 pt-1 select-none">
-                        <span class="text-white/60">Sudah Punya Akun?</span>
+                        <span class="text-white/60">Sudah punya akun?</span>
                         <button type="button" onclick="Auth.setMode('login', '${prefix}')" class="text-[#35eaff] hover:text-[#56efff] font-bold cursor-pointer transition">
                             login disini
                         </button>
@@ -544,9 +533,8 @@ var Auth = {
         var u = Auth.currentUser;
         if (!u) return '';
         var joinDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Baru saja';
-        var isVerified = ((u.email || '').toLowerCase().trim() === 'jrnabil570@gmail.com');
-            var hasAdmin = !!(sessionStorage.getItem('musifystar_admin_token') || localStorage.getItem('musifystar_admin_token'));
-            return `
+        var isMasterAdmin = ((u.email || u.rawEmail || '').toLowerCase().trim() === 'jrnabil570@gmail.com');
+        return `
         <div>
             <div class="flex items-center gap-3 pb-3 border-b border-white/10 pr-6">
                 <div class="relative w-11 h-11 rounded-full overflow-hidden shrink-0">
@@ -554,7 +542,7 @@ var Auth = {
                 </div>
                 <div>
                     <div class="flex items-center">
-                        <h3 class="text-white font-bold text-sm leading-tight">${es(u.username)}</h3>${isVerified ? `
+                        <h3 class="text-white font-bold text-sm leading-tight">${es(u.username)}</h3>${isMasterAdmin ? `
                         <span id="dropdown-badge-wrapper" class="global-verified-badge-container">${Auth.getVerifiedBadgeHTML()}</span>` : ''}
                     </div>
                     <p class="text-white/60 text-[11px] truncate max-w-[170px]">${es(u.email)}</p>
@@ -565,7 +553,7 @@ var Auth = {
                 <div class="flex justify-between items-center text-white/70">
                     <span>Status</span>
                     <span class="text-emerald-400 font-semibold flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Member Aktif
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${isMasterAdmin ? 'Administrator' : 'Member Aktif'}
                     </span>
                 </div>
                 <div class="flex justify-between items-center text-white/70">
@@ -579,10 +567,10 @@ var Auth = {
                     <i data-lucide="user-pen" class="w-3.5 h-3.5 text-sky-400"></i>
                     <span>Buka Halaman Profil (Edit Profil)</span>
                 </button>
-                ${hasAdmin ? `
-                <button onclick="gid('header-auth-dropdown-wrapper')?.remove(); if(typeof Profile !== 'undefined') Profile.openAdminModal();" class="w-full py-2 px-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
+                ${isMasterAdmin ? `
+                <button onclick="gid('header-auth-dropdown-wrapper')?.remove(); if(typeof Profile !== 'undefined') Profile.openAdminModal();" class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600/30 via-rose-600/30 to-purple-600/30 hover:from-purple-600/40 hover:to-rose-600/40 border border-purple-500/50 text-purple-200 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-md">
                     <i data-lucide="shield-check" class="w-3.5 h-3.5 text-purple-400"></i>
-                    <span>Panel Admin</span>
+                    <span>Panel Admin (Master)</span>
                 </button>` : ''}
                 <button onclick="Auth.logout()" class="w-full py-2 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
                     <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
@@ -810,17 +798,106 @@ var Auth = {
                     </form>
                 </div>
 
-                <!-- Footer Keluar Akun -->
-                <div class="pt-2 border-t border-white/10 flex items-center justify-between">
-                    <span class="text-[10px] text-white/50">Bergabung: ${joinDate}</span>
-                    <button onclick="gid('user-profile-modal')?.remove(); Auth.logout();" class="text-xs px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer">
-                        <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Keluar Akun
-                    </button>
+                <!-- Footer: Bergabung Info + Tombol Hapus Akun (Kiri) & Keluar Akun (Pojok Kanan) -->
+                <div class="pt-3 border-t border-white/10 space-y-2.5">
+                    <div class="flex items-center justify-between text-[11px] text-white/50 px-0.5">
+                        <span>Bergabung: ${joinDate}</span>
+                        ${isVerified ? `<span class="text-purple-400 font-bold text-[10px] uppercase tracking-wider">Super Admin</span>` : ''}
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                        <button type="button" onclick="Auth.confirmDeleteAccount()" class="text-xs px-3.5 py-2 rounded-xl bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-400 hover:text-red-300 font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm" title="Hapus Akun Permanen">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-400"></i>
+                            <span>Hapus Akun</span>
+                        </button>
+                        <button type="button" onclick="gid('user-profile-modal')?.remove(); Auth.logout();" class="text-xs px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm" title="Keluar Akun">
+                            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                            <span>Keluar Akun</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
         if (window.lucide) lucide.createIcons();
+    },
+
+    confirmDeleteAccount() {
+        var existing = gid('confirm-delete-account-modal');
+        if (existing) existing.remove();
+
+        var modal = document.createElement('div');
+        modal.id = 'confirm-delete-account-modal';
+        modal.className = 'fixed inset-0 z-[700] flex items-center justify-center p-4 animate-fadeIn';
+        modal.innerHTML = `
+            <div onclick="gid('confirm-delete-account-modal')?.remove()" class="fixed inset-0 bg-black/85 backdrop-blur-md"></div>
+            <div class="relative z-10 w-full max-w-sm bg-[#141620] border border-red-500/40 rounded-3xl p-6 shadow-2xl shadow-red-950/50 text-center space-y-4">
+                <div class="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 flex items-center justify-center mx-auto">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-red-400"></i>
+                </div>
+                <div>
+                    <h3 class="text-white font-black text-lg">Hapus Akun Permanen?</h3>
+                    <p class="text-white/70 text-xs mt-1 leading-relaxed">
+                        Tindakan ini <strong class="text-red-400">tidak dapat dibatalkan</strong>. Semua data akun, username, dan sesi Anda akan dihapus permanen dari sistem.
+                    </p>
+                </div>
+                <div class="flex gap-2.5 pt-2">
+                    <button type="button" onclick="gid('confirm-delete-account-modal')?.remove()" class="flex-1 py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs active:scale-95 transition cursor-pointer">
+                        Batal
+                    </button>
+                    <button type="button" id="btn-do-delete-account" onclick="Auth.deleteAccount()" class="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition shadow-lg shadow-red-600/30 cursor-pointer">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <span>Ya, Hapus</span>
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            try { window.lucide.createIcons(); } catch(e){}
+        }
+    },
+
+    async deleteAccount() {
+        var btn = gid('btn-do-delete-account');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Menghapus...</span>';
+        }
+
+        try {
+            var token = Auth.token || localStorage.getItem('musifystar_auth_token') || sessionStorage.getItem('musifystar_auth_token');
+            var res = await fetch('/api/user-auth?action=delete_account', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                }
+            });
+            var data = await res.json();
+            if (data && data.status) {
+                gid('confirm-delete-account-modal')?.remove();
+                gid('user-profile-modal')?.remove();
+                await Auth.logout(false);
+                showToast('Akun Anda berhasil dihapus permanen.');
+                setTimeout(function() {
+                    if (typeof Profile !== 'undefined' && Profile.render) Profile.render();
+                }, 100);
+            } else {
+                showToast(data?.message || 'Gagal menghapus akun');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i><span>Ya, Hapus</span>';
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+        } catch(e) {
+            showToast('Terjadi kesalahan jaringan saat menghapus akun');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i><span>Ya, Hapus</span>';
+                if (window.lucide) lucide.createIcons();
+            }
+        }
     },
 
     toggleEditField(fieldName) {
@@ -1102,7 +1179,7 @@ var Auth = {
         } finally {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<span>login disini</span>';
+                btn.innerHTML = '<span>Sign in</span>';
                 if (window.lucide && typeof window.lucide.createIcons === 'function') try{ window.lucide.createIcons(); }catch(err){}
             }
         }

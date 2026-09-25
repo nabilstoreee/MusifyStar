@@ -35,6 +35,7 @@ var Artist={
         var url = location.origin + '/artist/' + id;
         history.pushState({}, '', url);
         gid('artist-modal').style.display = 'flex';
+        if (typeof MP !== 'undefined' && MP.updatePosition) MP.updatePosition();
         gid('artist-name').innerText = name || 'Artist';
         
         var tImg = thumbnail || FI;
@@ -381,6 +382,7 @@ var Artist={
         gid('artist-modal').style.display='none';
         Artist.currentArtistData = null;
         Artist.currentArtistInfo = null;
+        if (typeof MP !== 'undefined' && MP.updatePosition) MP.updatePosition();
         if (typeof S !== 'undefined' && S.ct && S.ct.title && S.ct.cover) {
             if (typeof updateOG === 'function') updateOG(S.ct.title, S.ct.cover, S.ct.artist);
         } else {

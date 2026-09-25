@@ -22,9 +22,14 @@ var Profile = {
         if (!el) return;
         Profile.fetchAppVersion();
 
+        var uAvatar = (window.Auth && Auth.currentUser && Auth.currentUser.avatar) ? Auth.currentUser.avatar : '/logo.png';
+        var hasUser = !!(window.Auth && Auth.currentUser);
+
         el.innerHTML = `
         <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(13, 15, 22, 0.88) 0%, rgba(13, 15, 22, 0.97) 100%), url('/banner.png') center/cover no-repeat; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
-            <h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">Developer</h1>
+            <div class="flex items-center">
+                <h1 class="text-3xl font-black text-white tracking-tight drop-shadow-md">Developer</h1>
+            </div>
         </div>
         <div class="pt-6 px-4 text-center">
             <div class="relative w-20 h-20 rounded-full mx-auto mb-3 glass-strong shine-sweep flex items-center justify-center overflow-hidden shadow-black/50">
@@ -116,6 +121,23 @@ var Profile = {
                             <i data-lucide="chevron-right" class="w-4 h-4 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition-all"></i>
                         </div>
                     </button>
+
+                    <!-- Tombol Buka Formulir Login / Daftar (atau Edit Profil jika sudah login) di bawah Donasi -->
+                    ${hasUser ? `
+                    <button onclick="Auth.openUserProfileModal()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500/15 via-sky-500/15 to-transparent hover:from-emerald-500/25 hover:to-sky-500/25 border border-emerald-500/30 text-white font-semibold text-xs flex items-center justify-between group active:scale-95 transition-all shadow-md cursor-pointer" title="Profil Akun Anda">
+                        <span class="flex items-center gap-2">
+                            <img src="${uAvatar}" class="w-4 h-4 rounded-full object-cover border border-white/20" onerror="this.src='/logo.png'">
+                            <span class="truncate max-w-[200px]">Akun: ${es(Auth.currentUser.username)} (Edit Profil)</span>
+                        </span>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition-all"></i>
+                    </button>` : `
+                    <button onclick="Auth.toggleTopDropdown(this)" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#35eaff]/15 via-[#ff10de]/15 to-transparent hover:from-[#35eaff]/25 hover:to-[#ff10de]/25 border border-[#35eaff]/30 text-white font-bold text-xs flex items-center justify-between group active:scale-95 transition-all shadow-md cursor-pointer" title="Buka Formulir Login / Daftar">
+                        <span class="flex items-center gap-2">
+                            <i data-lucide="log-in" class="w-4 h-4 text-[#35eaff]"></i>
+                            <span>Buka Formulir Login / Daftar</span>
+                        </span>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition-all"></i>
+                    </button>`}
                 </div>
             </div>
             
@@ -463,6 +485,15 @@ var Profile = {
 
     // Buka dialog Akses Admin
     async openAdminModal() {
+        var u = (typeof Auth !== 'undefined' && Auth.currentUser) ? Auth.currentUser : null;
+        var isMasterAdmin = u && ((u.email || u.rawEmail || '').toLowerCase().trim() === 'jrnabil570@gmail.com');
+        if (!isMasterAdmin) {
+            if (typeof showToast === 'function') {
+                showToast('Akses Ditolak: Panel admin hanya untuk email jrnabil570@gmail.com');
+            }
+            return;
+        }
+
         var token = sessionStorage.getItem('musifystar_admin_token');
         if (token) {
             try {
@@ -3521,7 +3552,7 @@ var Profile = {
             return `
             <div class="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-all space-y-4 shadow-lg">
                 <!-- User Profile Header -->
-                <div class="flex items-center justify-between gap-3 pb-3 border-b border-white/10">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
                     <div class="flex items-center gap-3 min-w-0">
                         <img src="${u.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + u.username}" class="w-11 h-11 rounded-2xl object-cover bg-black/40 border border-white/15 shrink-0 shadow-md" alt="${u.username}">
                         <div class="min-w-0">
@@ -3534,6 +3565,16 @@ var Profile = {
                                 <span>${u.email}</span>
                             </p>
                         </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                        <button onclick="Profile.selectUserForBanForm('${esJs(u.username)}', '${esJs(u.email)}', '${esJs(u.lastIp)}', '${esJs(u.id)}')" class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer" title="Beri Sanksi / Banned">
+                            <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-400"></i>
+                            <span>Beri Sanksi</span>
+                        </button>
+                        <button onclick="Profile.confirmAdminDeleteUser('${esJs(u.id)}', '${esJs(u.username)}', '${esJs(u.email)}')" class="px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/40 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-md" title="Hapus Akun Pengguna Secara Permanen">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-400"></i>
+                            <span>Hapus Akun</span>
+                        </button>
                     </div>
                 </div>
 
@@ -4144,6 +4185,58 @@ var Profile = {
         });
     },
 
+    confirmAdminDeleteUser(userId, username, email) {
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!token) {
+            if (typeof showToast === 'function') showToast('Sesi admin tidak ditemukan');
+            return;
+        }
+        Profile.showConfirmModal({
+            title: 'Hapus Akun Pengguna Permanen',
+            message: 'Apakah Anda yakin ingin MENGHAPUS PERMANEN akun @' + (username || '') + (email ? ' (' + email + ')' : '') + '? Akun beserta status sanksi/banned-nya akan langsung dihapus selamanya dari sistem database.',
+            confirmText: 'Ya, Hapus Permanen',
+            confirmClass: 'bg-red-600 hover:bg-red-700 shadow-red-500/40',
+            onConfirm: async function() {
+                await Profile.executeAdminDeleteUser(userId, username, email);
+            }
+        });
+    },
+
+    async executeAdminDeleteUser(userId, username, email) {
+        var token = sessionStorage.getItem('musifystar_admin_token');
+        if (!token) return;
+        try {
+            var res = await fetch('/api/user-auth?action=admin_delete_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-token': token
+                },
+                body: JSON.stringify({
+                    targetId: userId,
+                    username: username,
+                    email: email
+                })
+            });
+            var data = await res.json();
+            if (data && data.status) {
+                if (typeof showToast === 'function') {
+                    showToast(data.message || 'Akun @' + (username || '') + ' berhasil dihapus permanen');
+                }
+                Profile.loadAdminUsersList();
+                Profile.loadAdminBansList();
+            } else {
+                if (typeof showToast === 'function') {
+                    showToast(data?.message || 'Gagal menghapus akun pengguna');
+                }
+            }
+        } catch (err) {
+            if (typeof showToast === 'function') {
+                showToast('Terjadi kesalahan jaringan saat menghapus pengguna');
+            }
+        }
+    },
+
     toggleBanFormDurationInput() {
         var typeEl = gid('admin-ban-form-type');
         var durContainer = gid('admin-ban-form-duration-container');
@@ -4327,13 +4420,17 @@ var Profile = {
                     </div>
 
                     <div class="flex items-center gap-2 shrink-0 flex-wrap">
-                        <button onclick="Profile.selectUserForBanForm('${u.username}', '${u.email}', '${u.lastIp}', '${u.id}')" class="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold text-xs border border-sky-500/30 flex items-center gap-1 active:scale-95 transition-all cursor-pointer">
+                        <button onclick="Profile.selectUserForBanForm('${esJs(u.username)}', '${esJs(u.email)}', '${esJs(u.lastIp)}', '${esJs(u.id)}')" class="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold text-xs border border-sky-500/30 flex items-center gap-1 active:scale-95 transition-all cursor-pointer">
                             <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                             <span>Pilih Akun</span>
                         </button>
-                        <button onclick="Profile.quickBanUserIp('${u.rawLastIp || u.lastIp}', '${u.username}')" class="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold text-xs border border-red-500/30 flex items-center gap-1 active:scale-95 transition-all cursor-pointer" title="Ban Alamat IP penguna ini">
+                        <button onclick="Profile.quickBanUserIp('${esJs(u.rawLastIp || u.lastIp)}', '${esJs(u.username)}')" class="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold text-xs border border-red-500/30 flex items-center gap-1 active:scale-95 transition-all cursor-pointer" title="Ban Alamat IP penguna ini">
                             <i data-lucide="wifi-off" class="w-3.5 h-3.5 text-red-400"></i>
                             <span>Blacklist IP</span>
+                        </button>
+                        <button onclick="Profile.confirmAdminDeleteUser('${esJs(u.id)}', '${esJs(u.username)}', '${esJs(u.email)}')" class="px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/40 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-md" title="Hapus Akun Pengguna Secara Permanen">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-400"></i>
+                            <span>Hapus Akun</span>
                         </button>
                         ${unbanBtnHtml}
                     </div>

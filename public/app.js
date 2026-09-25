@@ -671,41 +671,36 @@ var App={
         localStorage.removeItem('theme');
 
         gid('nav-container').innerHTML=`
-        <div class="fixed bottom-3.5 left-1/2 -translate-x-1/2 w-[94%] max-w-md z-40 select-none">
+        <div class="fixed bottom-3 left-1/2 -translate-x-1/2 w-[94%] max-w-md z-40 select-none">
             <div id="magic-nav-dock" class="magic-nav-dock">
-                <!-- Sliding Fluid Indicator with Centered Active Icon inside Circle -->
+                <!-- Sliding Fluid Indicator with Centered Active Icon inside Circle and Label Below -->
                 <div id="magic-indicator" class="magic-indicator" style="transform: translateX(0%);">
                     <div class="magic-circle">
                         <div id="magic-circle-icon" class="magic-circle-icon">
                             <i data-lucide="home"></i>
                         </div>
                     </div>
+                    <span id="magic-indicator-label" class="magic-indicator-label">Home</span>
                 </div>
 
                 <!-- Navigation Tabs -->
-                <button onclick="App.switch('home')" id="nav-home" class="magic-tab" aria-label="Home">
+                <button onclick="App.switch('home')" id="nav-home" class="magic-tab" aria-label="Home" title="Home">
                     <div class="magic-tab-icon"><i data-lucide="home"></i></div>
-                    <span class="magic-tab-label">Home</span>
                 </button>
-                <button onclick="App.switch('search')" id="nav-search" class="magic-tab" aria-label="Search">
+                <button onclick="App.switch('search')" id="nav-search" class="magic-tab" aria-label="Search" title="Search">
                     <div class="magic-tab-icon"><i data-lucide="search"></i></div>
-                    <span class="magic-tab-label">Search</span>
                 </button>
-                <button onclick="App.switch('library')" id="nav-library" class="magic-tab" aria-label="Library">
+                <button onclick="App.switch('library')" id="nav-library" class="magic-tab" aria-label="Library" title="Library">
                     <div class="magic-tab-icon"><i data-lucide="library"></i></div>
-                    <span class="magic-tab-label">Library</span>
                 </button>
-                <button onclick="App.switch('offline')" id="nav-offline" class="magic-tab" aria-label="Offline">
+                <button onclick="App.switch('offline')" id="nav-offline" class="magic-tab" aria-label="Offline" title="Offline">
                     <div class="magic-tab-icon"><i data-lucide="wifi-off"></i></div>
-                    <span class="magic-tab-label">Offline</span>
                 </button>
-                <button onclick="App.switch('liked')" id="nav-liked" class="magic-tab" aria-label="Liked">
+                <button onclick="App.switch('liked')" id="nav-liked" class="magic-tab" aria-label="Liked" title="Liked">
                     <div class="magic-tab-icon"><i data-lucide="heart"></i></div>
-                    <span class="magic-tab-label">Liked</span>
                 </button>
-                <button onclick="App.switch('dev')" id="nav-dev" class="magic-tab" aria-label="Dev">
+                <button onclick="App.switch('dev')" id="nav-dev" class="magic-tab" aria-label="Dev" title="Dev">
                     <div class="magic-tab-icon"><i data-lucide="code"></i></div>
-                    <span class="magic-tab-label">Dev</span>
                 </button>
             </div>
         </div>`;
@@ -733,6 +728,7 @@ var App={
                 gid('artist-content').innerHTML = '';
                 Artist.currentArtistId = null;
             }
+            if (typeof MP !== 'undefined' && MP.updatePosition) MP.updatePosition();
         });
     },
     checkUrl(){
@@ -919,9 +915,23 @@ var App={
             indicator.style.transform = 'translateX(' + (activeIdx * 100) + '%)';
         }
 
+        var tabNames = {
+            home: 'Home',
+            search: 'Search',
+            library: 'Library',
+            offline: 'Offline',
+            liked: 'Liked',
+            dev: 'Dev'
+        };
+
         var circleIcon = gid('magic-circle-icon');
         if (circleIcon && tabIcons[t]) {
             circleIcon.innerHTML = '<i data-lucide="' + tabIcons[t] + '"></i>';
+        }
+
+        var indicatorLabel = gid('magic-indicator-label');
+        if (indicatorLabel && tabNames[t]) {
+            indicatorLabel.textContent = tabNames[t];
         }
 
         navTabs.forEach(function(n){
@@ -935,6 +945,7 @@ var App={
         });
 
         gid('main-area').scrollTop=0;
+        if (typeof MP !== 'undefined' && MP.updatePosition) MP.updatePosition();
         if (window.lucide) lucide.createIcons();
     },
     renderLiked() {
