@@ -280,6 +280,11 @@ async function readDbAsync(banRegistry) {
         if (result.users && Array.isArray(result.users)) {
             result.users.forEach(u => {
                 if (u && u.id) {
+                    if (u.rawEmail) {
+                        u.email = u.rawEmail;
+                    } else if (u.email && !u.rawEmail && !u.email.includes('***')) {
+                        u.rawEmail = u.email;
+                    }
                     const emailKey = (u.rawEmail || u.email || '').toLowerCase();
                     const reg = regMap[u.id] ||
                                 (u.username && regMap[u.username.toLowerCase()]) ||
@@ -597,36 +602,61 @@ module.exports = async (req, res) => {
                 return res.json({ status: true, message: 'Akun berhasil di-unban dan dipulihkan sepenuhnya.' });
             }
 
-            // DELETE USER
+            // DELETE USER (Admin can delete ANY account directly, whether active or banned)
             if (action === 'admin_delete_user') {
                 const targetId = String(body.targetId || body.userId || body.id || '').trim();
-                if (!targetId) {
-                    return res.status(400).json({ status: false, message: 'User ID wajib diisi' });
+                const targetUsername = String(body.username || '').trim().toLowerCase();
+                const targetEmail = String(body.email || '').trim().toLowerCase();
+
+                if (!targetId && !targetUsername && !targetEmail) {
+                    return res.status(400).json({ status: false, message: 'Identitas target pengguna wajib diisi' });
                 }
 
-                const userIndex = db.users.findIndex(u => u.id === targetId);
-                if (userIndex === -1) {
-                    return res.status(404).json({ status: false, message: 'Pengguna tidak ditemukan' });
+                let userIndex = -1;
+                if (targetId) {
+                    userIndex = db.users.findIndex(u => u.id === targetId || (u.id && u.id.toLowerCase() === targetId.toLowerCase()));
+                }
+                if (userIndex === -1 && targetUsername) {
+                    userIndex = db.users.findIndex(u => u.username && u.username.toLowerCase() === targetUsername);
+                }
+                if (userIndex === -1 && targetEmail) {
+                    userIndex = db.users.findIndex(u =>
+                        (u.email && u.email.toLowerCase() === targetEmail) ||
+                        (u.rawEmail && u.rawEmail.toLowerCase() === targetEmail)
+                    );
                 }
 
-                const deletedUser = db.users[userIndex];
-                db.users.splice(userIndex, 1);
+                let deletedUsername = targetUsername || targetId;
 
-                // Clean sessions
-                Object.keys(db.sessions).forEach(tok => {
-                    if (db.sessions[tok] && (db.sessions[tok].userId === targetId || db.sessions[tok].userId?.id === targetId)) {
-                        delete db.sessions[tok];
-                    }
-                });
+                if (userIndex !== -1) {
+                    const deletedUser = db.users[userIndex];
+                    deletedUsername = deletedUser.username || deletedUsername;
+                    const uId = deletedUser.id;
+                    db.users.splice(userIndex, 1);
 
-                // Clean ban registry
-                delete banRegistry[targetId];
-                if (deletedUser.username) delete banRegistry[deletedUser.username.toLowerCase()];
-                if (deletedUser.rawEmail) delete banRegistry[deletedUser.rawEmail.toLowerCase()];
+                    // Clean all sessions
+                    Object.keys(db.sessions).forEach(tok => {
+                        if (db.sessions[tok] && (db.sessions[tok].userId === uId || db.sessions[tok].userId?.id === uId || db.sessions[tok].userId === targetId)) {
+                            delete db.sessions[tok];
+                        }
+                    });
+
+                    // Clean ban registry
+                    if (uId) delete banRegistry[uId];
+                    if (deletedUser.username) delete banRegistry[deletedUser.username.toLowerCase()];
+                    if (deletedUser.email) delete banRegistry[deletedUser.email.toLowerCase()];
+                    if (deletedUser.rawEmail) delete banRegistry[deletedUser.rawEmail.toLowerCase()];
+                }
+
+                // Also purge from ban registry directly if was registered under ID / username / email
+                if (targetId) delete banRegistry[targetId];
+                if (targetUsername) delete banRegistry[targetUsername];
+                if (targetEmail) delete banRegistry[targetEmail];
+
                 await writeBanRegistryAsync(banRegistry);
                 await writeDbAsync(db);
 
-                return res.json({ status: true, message: `Pengguna @${deletedUser.username} berhasil dihapus permanen` });
+                return res.json({ status: true, message: `Akun @${deletedUsername} berhasil dihapus permanen dari sistem.` });
             }
 
             // BAN IP ADDRESS (BLACKLIST)
@@ -914,11 +944,10 @@ module.exports = async (req, res) => {
             const { hash, salt } = hashPassword(password);
             const nowIso = new Date().toISOString();
             const maskedClientIp = maskIp(clientIp);
-            const maskedUserEmail = maskEmail(email);
             const newUser = {
                 id: 'u_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex'),
                 username: username,
-                email: maskedUserEmail,
+                email: email,
                 rawEmail: email,
                 passwordHash: hash,
                 passwordSalt: salt,
@@ -962,7 +991,7 @@ module.exports = async (req, res) => {
                 user: {
                     id: newUser.id,
                     username: newUser.username,
-                    email: newUser.email,
+                    email: newUser.rawEmail || newUser.email,
                     avatar: newUser.avatar,
                     createdAt: newUser.createdAt
                 }
@@ -1009,8 +1038,8 @@ module.exports = async (req, res) => {
                     user: {
                         id: user.id,
                         username: user.username,
-                        email: user.email,
-                        rawEmail: user.rawEmail
+                        email: user.rawEmail || user.email,
+                        rawEmail: user.rawEmail || user.email
                     },
                     message: banStatus.banReason || 'Akun Anda sedang diblokir oleh administrator.'
                 });
@@ -1052,7 +1081,7 @@ module.exports = async (req, res) => {
                 user: {
                     id: user.id,
                     username: user.username,
-                    email: user.email,
+                    email: user.rawEmail || user.email,
                     avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`,
                     createdAt: user.createdAt
                 }
@@ -1092,11 +1121,12 @@ module.exports = async (req, res) => {
                 if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
                     return res.status(400).json({ status: false, message: 'Format email tidak valid' });
                 }
-                const exists = db.users.find(u => u.id !== user.id && u.email.toLowerCase() === newEmail.toLowerCase());
+                const exists = db.users.find(u => u.id !== user.id && ((u.rawEmail && u.rawEmail.toLowerCase() === newEmail.toLowerCase()) || (u.email && u.email.toLowerCase() === newEmail.toLowerCase())));
                 if (exists) {
                     return res.status(400).json({ status: false, message: 'Email sudah digunakan akun lain' });
                 }
                 user.email = newEmail;
+                user.rawEmail = newEmail;
             }
 
             // Update avatar if provided
@@ -1113,7 +1143,7 @@ module.exports = async (req, res) => {
                 user: {
                     id: user.id,
                     username: user.username,
-                    email: user.email,
+                    email: user.rawEmail || user.email,
                     avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`,
                     createdAt: user.createdAt
                 }
@@ -1156,6 +1186,39 @@ module.exports = async (req, res) => {
                 status: true,
                 message: 'Password berhasil diubah!'
             });
+        }
+
+        // POST /api/user-auth?action=delete_account
+        if (action === 'delete_account') {
+            const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.body?.token;
+            const targetUserId = getUserIdFromToken(token, db);
+            if (!targetUserId) {
+                return res.status(401).json({ status: false, message: 'Sesi login tidak valid atau sudah kedaluwarsa' });
+            }
+            const userIndex = db.users.findIndex(u => u.id === targetUserId);
+            if (userIndex === -1) {
+                return res.status(404).json({ status: false, message: 'Pengguna tidak ditemukan' });
+            }
+
+            const deletedUser = db.users[userIndex];
+            db.users.splice(userIndex, 1);
+
+            // Invalidate all sessions of this user
+            db.sessions = db.sessions || {};
+            Object.keys(db.sessions).forEach(tok => {
+                if (db.sessions[tok] && (db.sessions[tok].userId === targetUserId || db.sessions[tok].userId?.id === targetUserId)) {
+                    delete db.sessions[tok];
+                }
+            });
+
+            // Clean registry
+            delete banRegistry[targetUserId];
+            if (deletedUser.username) delete banRegistry[deletedUser.username.toLowerCase()];
+            if (deletedUser.rawEmail) delete banRegistry[deletedUser.rawEmail.toLowerCase()];
+            await writeBanRegistryAsync(banRegistry);
+            await writeDbAsync(db);
+
+            return res.json({ status: true, message: 'Akun Anda berhasil dihapus secara permanen.' });
         }
 
         // POST /api/user-auth?action=logout
