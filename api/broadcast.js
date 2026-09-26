@@ -8,54 +8,54 @@ const BROADCAST_FILE = '.broadcast_announcement.json';
 const PRESETS = [
     {
         id: 'ramadhan',
-        name: '🌙 Spesial Ramadhan & Puasa',
+        name: 'Spesial Ramadhan & Puasa',
         title: 'Marhaban Ya Ramadhan 1446 H',
-        badge: '🌙 BULAN SUCI',
+        badge: 'BULAN SUCI',
         type: 'update',
         icon: 'moon',
         text: 'Selamat menjalankan ibadah puasa di bulan suci Ramadhan. Dengarkan lantunan musik religi dan lagu favorit Anda di MusifyStar!'
     },
     {
         id: 'lebaran',
-        name: '🕌 Selamat Hari Raya Idul Fitri',
+        name: 'Selamat Hari Raya Idul Fitri',
         title: 'Taqabbalallahu Minna Wa Minkum',
-        badge: '🕌 IDUL FITRI',
+        badge: 'IDUL FITRI (LEBARAN)',
         type: 'update',
         icon: 'sparkles',
         text: 'Selamat Hari Raya Idul Fitri! Minal Aidin Wal Faidzin, mohon maaf lahir dan batin. Rayakan momen berkumpul bersama keluarga diiringi lagu terindah.'
     },
     {
         id: 'maintenance',
-        name: '🛠️ Info Maintenance / Pemeliharaan',
+        name: 'Info Pemeliharaan Sistem',
         title: 'Pemeliharaan Sistem Server',
-        badge: '🛠️ MAINTENANCE',
+        badge: 'MAINTENANCE',
         type: 'maintenance',
         icon: 'wrench',
         text: 'Server akan mengalami pemeliharaan sistem rutin pada pukul 00:00 - 01:00 WIB. Pemutaran lagu di koleksi offline tetap dapat dinikmati secara lancar.'
     },
     {
         id: 'update',
-        name: '✨ Rilis Fitur & Versi Baru',
+        name: 'Rilis Fitur & Versi Baru',
         title: 'MusifyStar Pembaruan v2.5',
-        badge: '✨ RILIS BARU',
+        badge: 'RILIS BARU',
         type: 'update',
         icon: 'sparkles',
         text: 'Fitur Baru: Top 50 Lagu Populer, Seasonal Theme Switcher & Keamanan 2FA telah hadir! Nikmati pemutaran musik lebih cepat dan stabil.'
     },
     {
         id: 'info',
-        name: '📢 Info & Pengumuman Umum',
+        name: 'Info & Pengumuman Umum',
         title: 'Selamat Datang di MusifyStar',
-        badge: '📢 PENGUMUMAN',
+        badge: 'PENGUMUMAN',
         type: 'info',
         icon: 'megaphone',
         text: 'Nikmati jutaan lagu tanpa gangguan. Pasang aplikasi (PWA) di HP Anda untuk pengalaman mendengarkan musik terbaik di mana saja.'
     },
     {
         id: 'warning',
-        name: '⚠️ Peringatan Kendala Jaringan',
+        name: 'Peringatan Kendala Jaringan',
         title: 'Pemberitahuan Kendala Server',
-        badge: '⚠️ PERINGATAN',
+        badge: 'PERINGATAN',
         type: 'warning',
         icon: 'alert-triangle',
         text: 'Penyedia layanan API musik sedang mengalami lonjakan lalu lintas tinggi. Jika pemutaran lagu lambat, mohon refresh beberapa saat lagi.'
