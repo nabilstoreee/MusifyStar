@@ -57,6 +57,51 @@ function cleanA(a) {
     return a.replace(/- Topic/gi, '').replace(/\s+/g, ' ').trim();
 }
 
+function norm(s) {
+    return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isGoodMatch(candidate, targetTitle, targetArtist) {
+    if (!candidate) return false;
+    const cTrack = norm(candidate.trackName);
+    const cArt = norm(candidate.artistName);
+    const tTrack = norm(targetTitle);
+    const tArt = norm(targetArtist);
+
+    if (!cTrack) return false;
+
+    // Check title match
+    const titleExact = cTrack === tTrack;
+    const titleContains = (cTrack.includes(tTrack) || tTrack.includes(cTrack)) && Math.min(cTrack.length, tTrack.length) >= 4;
+
+    if (!titleExact && !titleContains) return false;
+
+    // If target artist is provided
+    if (tArt && tArt.length > 0) {
+        // Artist words overlap check
+        const tWords = tArt.split(' ').filter(w => w.length > 2);
+        const cWords = cArt.split(' ').filter(w => w.length > 2);
+        
+        let hasArtistMatch = false;
+        if (cArt === tArt || cArt.includes(tArt) || tArt.includes(cArt)) {
+            hasArtistMatch = true;
+        } else if (tWords.length > 0 && cWords.length > 0) {
+            const matchCount = tWords.filter(w => cWords.includes(w)).length;
+            if (matchCount > 0) hasArtistMatch = true;
+        }
+
+        // If artist doesn't match at all:
+        // Only accept if title is highly unique (long and exact, > 14 chars), not short ambiguous names
+        if (!hasArtistMatch) {
+            if (tTrack.length < 14) return false;
+            // Even if long, if candidate artist has completely different names, reject to be safe
+            return false;
+        }
+    }
+
+    return true;
+}
+
 async function getLyrics1(videoId, queryTitle = '', queryArtist = '') {
     let title = (queryTitle || '').trim();
     let artist = (queryArtist || '').trim();
@@ -118,34 +163,63 @@ async function getLyrics1(videoId, queryTitle = '', queryArtist = '') {
         }
     }
 
-    // Try search queries on LRCLIB
-    const searchQueries = [];
-    if (cTitle && cArtist) searchQueries.push(cTitle + ' ' + cArtist);
-    if (cTitle) searchQueries.push(cTitle);
-    if (title && title !== cTitle) searchQueries.push(cleanT(title));
-
-    for (const sqRaw of searchQueries) {
-        if (!sqRaw || lyricsData.lines.length > 0) break;
+    // 1. Try Direct LRCLIB /get endpoint first if title and artist exist
+    if (cTitle && cArtist) {
         try {
-            const sq = encodeURIComponent(sqRaw);
-            const lrc = await makeRequest({
+            const direct = await makeRequest({
                 hostname: 'lrclib.net',
-                path: '/api/search?q=' + sq,
+                path: '/api/get?track_name=' + encodeURIComponent(cTitle) + '&artist_name=' + encodeURIComponent(cArtist),
                 method: 'GET',
                 headers: { 'User-Agent': 'Mozilla/5.0 Chrome/120.0.0.0' },
                 rejectUnauthorized: false,
-                timeout: 5000
+                timeout: 4000
             }, null);
 
-            if (Array.isArray(lrc) && lrc.length > 0) {
-                let b = lrc.find(x => x.syncedLyrics) || lrc.find(x => x.plainLyrics) || lrc[0];
-                if (b.syncedLyrics) {
-                    lyricsData = { type: 'synced', lines: parseSyncedLyrics(b.syncedLyrics) };
-                } else if (b.plainLyrics) {
-                    lyricsData = { type: 'plain', lines: parsePlainLyrics(b.plainLyrics) };
+            if (direct && isGoodMatch(direct, cTitle, cArtist)) {
+                if (direct.syncedLyrics) {
+                    lyricsData = { type: 'synced', lines: parseSyncedLyrics(direct.syncedLyrics) };
+                } else if (direct.plainLyrics) {
+                    lyricsData = { type: 'plain', lines: parsePlainLyrics(direct.plainLyrics) };
                 }
             }
         } catch (e) {}
+    }
+
+    // 2. Try search queries on LRCLIB with candidate verification
+    if (lyricsData.lines.length === 0) {
+        const searchQueries = [];
+        if (cTitle && cArtist) searchQueries.push(cTitle + ' ' + cArtist);
+        if (cTitle) searchQueries.push(cTitle);
+        if (title && title !== cTitle) searchQueries.push(cleanT(title));
+
+        for (const sqRaw of searchQueries) {
+            if (!sqRaw || lyricsData.lines.length > 0) break;
+            try {
+                const sq = encodeURIComponent(sqRaw);
+                const lrc = await makeRequest({
+                    hostname: 'lrclib.net',
+                    path: '/api/search?q=' + sq,
+                    method: 'GET',
+                    headers: { 'User-Agent': 'Mozilla/5.0 Chrome/120.0.0.0' },
+                    rejectUnauthorized: false,
+                    timeout: 5000
+                }, null);
+
+                if (Array.isArray(lrc) && lrc.length > 0) {
+                    // Filter candidates that actually match the song and artist
+                    const matchedCandidates = lrc.filter(x => isGoodMatch(x, cTitle || title, cArtist || artist));
+                    
+                    if (matchedCandidates.length > 0) {
+                        let b = matchedCandidates.find(x => x.syncedLyrics) || matchedCandidates.find(x => x.plainLyrics) || matchedCandidates[0];
+                        if (b.syncedLyrics) {
+                            lyricsData = { type: 'synced', lines: parseSyncedLyrics(b.syncedLyrics) };
+                        } else if (b.plainLyrics) {
+                            lyricsData = { type: 'plain', lines: parsePlainLyrics(b.plainLyrics) };
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
     }
 
     // Translate lines with 3.5s timeout safety race
