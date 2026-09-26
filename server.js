@@ -124,6 +124,7 @@ app.all('/api/theme', require('./api/theme.js'));
 app.all('/api/broadcast', require('./api/broadcast.js'));
 app.all('/api/version', require('./api/version.js'));
 app.all('/api/user-auth', require('./api/user-auth.js'));
+app.all('/api/home-sections', require('./api/home-sections.js'));
 
 // Proxy audio needs to stream in node, bypassing edge function
 app.get('/api/proxy-audio', (req, res) => {
