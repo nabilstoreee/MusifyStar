@@ -39,10 +39,22 @@ function makeRequest(o, p) {
 }
 
 module.exports = async (req, res) => {
-    if (req.method === 'OPTIONS') { res.status(200).end(); return; }
-    if (req.method !== 'GET') { res.status(405).json({ status: false, message: 'Method not allowed' }); return; }
-    const artistId = (req.query.id || '').trim();
-    if (!artistId) { res.status(400).json({ status: false, message: 'Parameter id wajib diisi' }); return; }
+    const sendJson = (code, payload) => {
+        if (typeof res.status === 'function') {
+            res.status(code).json(payload);
+        } else if (typeof res.json === 'function') {
+            res.statusCode = code;
+            res.json(payload);
+        } else {
+            res.writeHead(code, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(payload));
+        }
+    };
+
+    if (req.method === 'OPTIONS') { if (typeof res.status === 'function') res.status(200).end(); else res.end(); return; }
+    if (req.method !== 'GET') { sendJson(405, { status: false, message: 'Method not allowed' }); return; }
+    const artistId = (req.query?.id || '').trim();
+    if (!artistId) { sendJson(400, { status: false, message: 'Parameter id wajib diisi' }); return; }
 
     try {
         const data = await makeRequest({
@@ -94,8 +106,49 @@ module.exports = async (req, res) => {
             }
         } catch(e) {}
 
-        const result = { status: true, input: { id: artistId }, result: { artistId, name, thumbnails, topSongs, topAlbums, topSingles, topVideos, playlists, featuredOn, similarArtists, creator: 'Nanzz' } };
+        // If browse returned 0 songs, fall back to searching songs by artist name
+        if (topSongs.length === 0) {
+            const queryName = (req.query.name || name || artistId).trim();
+            if (queryName && queryName !== artistId) {
+                try {
+                    const searchData = await makeRequest({
+                        hostname: 'music.youtube.com', path: '/youtubei/v1/search?key='+API_KEY, method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 Chrome/120.0.0.0', 'Origin': 'https://music.youtube.com' },
+                        rejectUnauthorized: false, timeout: 10000
+                    }, {
+                        context: { client: { clientName: 'WEB_REMIX', clientVersion: '1.20240101.00.00', hl: 'id', gl: 'ID' } },
+                        query: queryName,
+                        params: 'EgWKAQIIAWoSEAQQAxAFEAkQChAVEBAQERAO'
+                    });
+
+                    const tabs = searchData?.contents?.tabbedSearchResultsRenderer?.tabs || [];
+                    for (const tab of tabs) {
+                        const contents = tab?.tabRenderer?.content?.sectionListRenderer?.contents || [];
+                        for (const sec of contents) {
+                            const items = sec?.musicShelfRenderer?.contents || sec?.itemSectionRenderer?.contents || [];
+                            for (const item of items) {
+                                const r = item?.musicResponsiveListItemRenderer;
+                                if (!r) continue;
+                                const videoId = r.playlistItemData?.videoId || r.navigationEndpoint?.watchEndpoint?.videoId || '';
+                                if (!videoId) continue;
+                                const songTitle = getRunsText(r.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || []);
+                                const songArtist = getRunsText(r.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || []);
+                                const rawThumbs = r.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+                                const songThumbs = transformThumbs(rawThumbs, videoId);
+                                topSongs.push({ videoId, title: songTitle, artist: songArtist || queryName, thumbnails: songThumbs });
+                            }
+                        }
+                    }
+                    if (!name) name = queryName;
+                    if (thumbnails.length === 0 && topSongs.length > 0 && topSongs[0].thumbnails) {
+                        thumbnails = topSongs[0].thumbnails;
+                    }
+                } catch(searchErr) {}
+            }
+        }
+
+        const result = { status: true, input: { id: artistId }, result: { artistId, name: name || req.query.name || 'Artist', thumbnails, topSongs, topAlbums, topSingles, topVideos, playlists, featuredOn, similarArtists, creator: 'Nanzz' } };
         removeKeysRecursive(result, ['creator']);
-        res.status(200).json(result);
-    } catch(e) { res.status(500).json({ status: false, message: 'Gagal: '+e.message }); }
+        sendJson(200, result);
+    } catch(e) { sendJson(500, { status: false, message: 'Gagal: '+e.message }); }
 };
