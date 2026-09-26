@@ -1,5 +1,19 @@
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+
+let communityPlaylists = null;
+try {
+    communityPlaylists = require('../community_playlists.json');
+} catch(e) {
+    try {
+        const cpPath = path.join(__dirname, '..', 'community_playlists.json');
+        if (fs.existsSync(cpPath)) {
+            communityPlaylists = JSON.parse(fs.readFileSync(cpPath, 'utf8'));
+        }
+    } catch(err) {}
+}
 
 function getRunsText(r) { return Array.isArray(r) ? r.map(x=>x.text||'').join('') : ''; }
 
@@ -56,6 +70,30 @@ module.exports = async (req, res) => {
     const id = (req.query.id || '').trim();
     if (!id) { res.status(400).json({ status: false, message: 'Parameter id wajib diisi' }); return; }
     
+    // Instant response for curated community playlists
+    if (communityPlaylists && communityPlaylists[id]) {
+        const cp = communityPlaylists[id];
+        return res.status(200).json({
+            status: true,
+            creator: 'Nanzz',
+            result: {
+                id: cp.id,
+                title: cp.title,
+                artist: cp.artist || cp.creator || 'MusifyStar Komunitas',
+                creator: cp.creator || 'MusifyStar Komunitas',
+                description: cp.description || '',
+                thumbnails: [{ url: cp.cover }],
+                songs: (cp.songs || []).map(s => ({
+                    videoId: s.videoId,
+                    title: s.title,
+                    artist: s.artist,
+                    duration: s.duration || '3:30',
+                    thumbnails: s.thumbnails || [{ url: s.cover }]
+                }))
+            }
+        });
+    }
+
     try {
         let browseId = id;
         if (!browseId.startsWith('VL') && browseId.startsWith('PL')) {
@@ -197,12 +235,52 @@ module.exports = async (req, res) => {
             thumbnails = songs[0].thumbnails || [];
         }
 
+        // If album/playlist has 0 songs, search for tracks so it never opens empty
+        if (songs.length === 0) {
+            const queryName = (req.query.title || title || id).replace(/^VL|^PL_?/i, '').replace(/_/g, ' ').trim();
+            if (queryName && queryName !== 'Unknown' && queryName !== 'Unknown Album') {
+                try {
+                    const searchData = await makeRequest({
+                        hostname: 'music.youtube.com', path: '/youtubei/v1/search?key='+API_KEY, method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 Chrome/120.0.0.0', 'Origin': 'https://music.youtube.com' },
+                        rejectUnauthorized: false, timeout: 8000
+                    }, {
+                        context: { client: { clientName: 'WEB_REMIX', clientVersion: '1.20240101.00.00', hl: 'id', gl: 'ID' } },
+                        query: queryName,
+                        params: 'EgWKAQIIAWoSEAQQAxAFEAkQChAVEBAQERAO'
+                    });
+                    const tabs = searchData?.contents?.tabbedSearchResultsRenderer?.tabs || [];
+                    for (const tab of tabs) {
+                        const contents = tab?.tabRenderer?.content?.sectionListRenderer?.contents || [];
+                        for (const sec of contents) {
+                            const items = sec?.musicShelfRenderer?.contents || sec?.itemSectionRenderer?.contents || [];
+                            for (const item of items) {
+                                const r = item?.musicResponsiveListItemRenderer;
+                                if (!r) continue;
+                                const videoId = r.playlistItemData?.videoId || r.navigationEndpoint?.watchEndpoint?.videoId || '';
+                                if (!videoId || songs.find(s => s.videoId === videoId)) continue;
+                                const songTitle = getRunsText(r.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || []);
+                                const songArtist = getRunsText(r.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || []);
+                                const rawThumbs = r.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+                                const songThumbs = transformThumbs(rawThumbs, videoId);
+                                songs.push({ videoId, title: songTitle, artist: songArtist || 'MusifyStar', duration: '3:30', thumbnails: songThumbs });
+                            }
+                        }
+                    }
+                    if (title === 'Unknown' || title === 'Unknown Album') title = queryName;
+                    if (thumbnails.length === 0 && songs.length > 0 && songs[0].thumbnails) {
+                        thumbnails = songs[0].thumbnails;
+                    }
+                } catch(searchErr) {}
+            }
+        }
+
         res.status(200).json({
-            status: songs.length > 0 || isPlaylist,
+            status: true,
             creator: 'Nanzz',
             result: {
                 id,
-                title,
+                title: title === 'Unknown' ? (req.query.title || 'Playlist') : title,
                 description,
                 thumbnails,
                 songs
