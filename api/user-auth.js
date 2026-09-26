@@ -862,13 +862,17 @@ module.exports = async (req, res) => {
                         authenticated: true,
                         banned: false,
                         ban: banStatus,
+                        clientIp: clientIp,
+                        ip: clientIp,
                         user: {
                             id: user.id,
                             username: user.username,
                             email: user.rawEmail || user.email,
                             rawEmail: user.rawEmail || user.email,
                             avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`,
-                            createdAt: user.createdAt
+                            createdAt: user.createdAt,
+                            ip: clientIp,
+                            lastIp: clientIp
                         }
                     });
                 } else {
