@@ -263,10 +263,10 @@ module.exports = async function (req, res) {
 
     if (method === 'POST') {
         const body = req.body || {};
-        const action = body.action || 'login';
+        const action = body.action || (body.username || body.password ? 'login' : '');
         const username = typeof body.username === 'string' ? body.username.trim() : '';
         const password = typeof body.password === 'string' ? body.password : '';
-        const token = body.token || req.headers['x-admin-token'];
+        const token = body.token || req.headers['x-admin-token'] || (req.headers['authorization'] ? req.headers['authorization'].replace(/^Bearer\s+/i, '') : '');
 
         // Clean up expired 2FA login temp tokens
         const now = Date.now();
@@ -377,7 +377,7 @@ module.exports = async function (req, res) {
         // ==========================================
         // ACTION: 2FA SETUP INIT (Generate secret & URI)
         // ==========================================
-        if (action === '2fa_init') {
+        if (action === '2fa_init' || action === '2fa_setup') {
             if (!token || !verifySessionToken(token)) {
                 return res.status(401).json({ status: false, message: 'Akses ditolak: Membutuhkan token admin aktif' });
             }
@@ -386,6 +386,7 @@ module.exports = async function (req, res) {
             const issuer = 'MusifyStar Admin';
             const account = creds.username || 'admin';
             const otpauthUrl = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(account)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`;
 
             pending2FASetups.set(token, { secret: secret, createdAt: Date.now() });
 
@@ -393,6 +394,7 @@ module.exports = async function (req, res) {
                 status: true,
                 secret: secret,
                 otpauthUrl: otpauthUrl,
+                qrUrl: qrUrl,
                 username: account,
                 issuer: issuer
             });
@@ -543,51 +545,55 @@ module.exports = async function (req, res) {
         // ==========================================
         // ACTION: LOGIN (Step 1)
         // ==========================================
-        if (!username || !password) {
-            return res.status(400).json({ status: false, message: 'Username dan password wajib diisi' });
-        }
-
-        let isMatch = false;
-
-        const inputUser = username.trim().toLowerCase();
-        const storedUser = (creds.username || '').trim().toLowerCase();
-        const isUserMatch = (inputUser === storedUser) || (inputUser === 'admin') || (storedUser === 'admin');
-
-        if (creds.type === 'env') {
-            const passMatch = safeCompare(password, creds.password);
-            isMatch = isUserMatch && passMatch;
-        } else if (creds.type === 'file') {
-            if (isUserMatch) {
-                const calculatedHash = computeHash(password, creds.salt);
-                isMatch = safeCompare(calculatedHash, creds.hash);
+        if (action === 'login') {
+            if (!username || !password) {
+                return res.status(400).json({ status: false, message: 'Username dan password wajib diisi' });
             }
-        }
 
-        if (!isMatch) {
-            return res.status(401).json({ status: false, message: 'Username atau password salah' });
-        }
+            let isMatch = false;
 
-        // If 2FA is active, require OTP verification before giving full token
-        if (creds.twoFactorEnabled && creds.twoFactorSecret) {
-            const tempToken = createSignedTempToken(creds.username);
+            const inputUser = username.trim().toLowerCase();
+            const storedUser = (creds.username || '').trim().toLowerCase();
+            const isUserMatch = (inputUser === storedUser) || (inputUser === 'admin') || (storedUser === 'admin');
+
+            if (creds.type === 'env') {
+                const passMatch = safeCompare(password, creds.password);
+                isMatch = isUserMatch && passMatch;
+            } else if (creds.type === 'file') {
+                if (isUserMatch) {
+                    const calculatedHash = computeHash(password, creds.salt);
+                    isMatch = safeCompare(calculatedHash, creds.hash);
+                }
+            }
+
+            if (!isMatch) {
+                return res.status(401).json({ status: false, message: 'Username atau password salah' });
+            }
+
+            // If 2FA is active, require OTP verification before giving full token
+            if (creds.twoFactorEnabled && creds.twoFactorSecret) {
+                const tempToken = createSignedTempToken(creds.username);
+
+                return res.json({
+                    status: true,
+                    require2FA: true,
+                    tempToken: tempToken,
+                    message: 'Verifikasi 2FA diperlukan. Masukkan kode 6 digit OTP.'
+                });
+            }
+
+            // Direct Login without 2FA
+            const sessionToken = createSignedSessionToken(creds.username);
 
             return res.json({
                 status: true,
-                require2FA: true,
-                tempToken: tempToken,
-                message: 'Verifikasi 2FA diperlukan. Masukkan kode 6 digit OTP.'
+                success: true,
+                token: sessionToken,
+                message: 'Login admin berhasil'
             });
         }
 
-        // Direct Login without 2FA
-        const sessionToken = createSignedSessionToken(creds.username);
-
-        return res.json({
-            status: true,
-            success: true,
-            token: sessionToken,
-            message: 'Login admin berhasil'
-        });
+        return res.status(400).json({ status: false, message: 'Aksi admin tidak valid atau tidak didukung' });
     }
 
     return res.status(405).json({ status: false, message: 'Metode tidak didukung' });

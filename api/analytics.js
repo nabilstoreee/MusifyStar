@@ -146,6 +146,29 @@ function recordHeartbeat(sessionInfo, userAgent) {
 
     const prevSession = activeSessions.get(sessionId);
 
+    // Parse and attach user profile if provided
+    const userRaw = sessionInfo.user || (prevSession && prevSession.user) || null;
+    let userInfo = null;
+    if (userRaw && typeof userRaw === 'object' && (userRaw.username || userRaw.email || userRaw.name || userRaw.id)) {
+        userInfo = {
+            id: userRaw.id ? String(userRaw.id) : '',
+            username: userRaw.username ? String(userRaw.username) : (userRaw.name ? String(userRaw.name) : 'Pengguna'),
+            name: userRaw.name ? String(userRaw.name) : (userRaw.username ? String(userRaw.username) : 'Pengguna'),
+            email: userRaw.email ? String(userRaw.email) : '',
+            avatar: userRaw.avatar ? String(userRaw.avatar) : '',
+            isLoggedIn: Boolean(userRaw.id || userRaw.email || (userRaw.username && userRaw.username.toLowerCase() !== 'tamu'))
+        };
+    } else {
+        userInfo = {
+            id: '',
+            username: 'Tamu (Belum Login)',
+            name: 'Pengguna Tamu',
+            email: '',
+            avatar: '',
+            isLoggedIn: false
+        };
+    }
+
     // 1. Device Breakdown Recording (Counted once per unique session)
     if (!recordedSessionDevices.has(sessionId)) {
         recordedSessionDevices.add(sessionId);
@@ -170,7 +193,8 @@ function recordHeartbeat(sessionInfo, userAgent) {
                 isPlaying: false,
                 lastSeen: now,
                 listeningSeconds: listeningSecs,
-                device: deviceType
+                device: deviceType,
+                user: userInfo
             });
         }
     } else {
@@ -196,7 +220,8 @@ function recordHeartbeat(sessionInfo, userAgent) {
             isPlaying: true,
             lastSeen: now,
             listeningSeconds: listeningSecs,
-            device: deviceType
+            device: deviceType,
+            user: userInfo
         });
 
         // 2. Average Duration Accumulator
