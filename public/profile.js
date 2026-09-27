@@ -489,7 +489,7 @@ var Profile = {
         var isMasterAdmin = u && ((u.email || u.rawEmail || '').toLowerCase().trim() === 'jrnabil570@gmail.com');
         if (!isMasterAdmin) {
             if (typeof showToast === 'function') {
-                showToast('Akses Ditolak: Panel admin hanya untuk email jrnabil570@gmail.com');
+                showToast('Akses Ditolak Hanya Admin Yang Bisa Akses');
             }
             return;
         }
@@ -1132,34 +1132,73 @@ var Profile = {
                 sessionsHtml = listeners.sessions.map(function(s) {
                     var devBadge = '';
                     if (s.device === 'android_apk') devBadge = '<span class="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono">Aplikasi Android</span>';
-                    else if (s.device === 'pwa_chrome') devBadge = '<span class="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono">Aplikasi</span>';
-                    else if (s.device === 'safari_ios') devBadge = '<span class="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded font-mono">iOS</span>';
-                    else devBadge = '<span class="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded font-mono">Web</span>';
+                    else if (s.device === 'pwa_chrome') devBadge = '<span class="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono">Aplikasi PWA</span>';
+                    else if (s.device === 'safari_ios') devBadge = '<span class="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded font-mono">Safari iOS</span>';
+                    else devBadge = '<span class="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded font-mono">Desktop Web</span>';
+
+                    var u = s.user || {};
+                    var isUserLoggedIn = Boolean(u.isLoggedIn && u.username && u.username !== 'Tamu (Belum Login)');
+                    var displayUsername = isUserLoggedIn ? ('@' + u.username) : 'Pengguna Tamu';
+                    var displayEmail = u.email ? `<span class="text-[10px] text-white/40 truncate block">${u.email}</span>` : '';
+                    var userBadge = isUserLoggedIn 
+                        ? '<span class="text-[9px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.2 rounded font-semibold shrink-0">Member</span>' 
+                        : '<span class="text-[9px] bg-white/10 text-white/50 border border-white/15 px-1.5 py-0.2 rounded shrink-0">Tamu</span>';
+
+                    var avatarUrl = u.avatar || (isUserLoggedIn 
+                        ? `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username)}` 
+                        : '/logo.png');
+
+                    var trackCover = s.image || (s.id ? `https://i.ytimg.com/vi/${s.id}/hqdefault.jpg` : '/logo.png');
+                    var listenDur = s.listeningSeconds ? (Math.floor(s.listeningSeconds / 60) + 'm ' + (s.listeningSeconds % 60) + 'd') : 'Baru saja';
 
                     return `
-                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-xs">
-                        <div class="flex items-center gap-2.5 overflow-hidden">
-                            <div class="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
-                                <i data-lucide="music" class="w-3.5 h-3.5 animate-pulse"></i>
+                    <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-white/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+                        <!-- User Profile Information -->
+                        <div class="flex items-center gap-3 min-w-0 sm:w-1/2">
+                            <div class="relative shrink-0">
+                                <img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover bg-black/40 border border-white/15 shadow-sm" onerror="this.src='/logo.png'" />
+                                <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#12141e] shadow-sm"></span>
                             </div>
-                            <div class="truncate">
-                                <p class="text-white font-semibold truncate">${s.title || 'Sedang Mendengarkan'}</p>
-                                <p class="text-white/50 text-[11px] truncate flex items-center gap-1.5">
-                                    <span>${s.artist || 'MusifyStar'}</span>
-                                    ${devBadge}
-                                </p>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <h4 class="font-extrabold text-white text-xs truncate max-w-[160px]">${displayUsername}</h4>
+                                    ${userBadge}
+                                </div>
+                                ${displayEmail}
+                                <span class="text-[10px] text-white/50 flex items-center gap-1 mt-0.5">
+                                    <i data-lucide="clock" class="w-3 h-3 text-sky-400"></i> Durasi dengar: <strong class="text-white/80">${listenDur}</strong>
+                                </span>
                             </div>
                         </div>
-                        <span class="text-[10px] text-emerald-400 font-bold flex items-center gap-1 shrink-0 ml-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live
-                        </span>
+
+                        <!-- Song & Device Information -->
+                        <div class="flex items-center justify-between sm:justify-end gap-3 min-w-0 sm:w-1/2 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5">
+                            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                <img src="${trackCover}" class="w-10 h-10 rounded-xl object-cover bg-black/40 border border-white/10 shrink-0 shadow-sm" onerror="this.src='/logo.png'" />
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-white font-bold text-xs truncate max-w-[200px]">${s.title || 'Sedang Mendengarkan'}</p>
+                                    <div class="text-[11px] text-white/50 truncate flex items-center gap-1.5 mt-0.5">
+                                        <span class="truncate">${s.artist || 'MusifyStar'}</span>
+                                        ${devBadge}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <span class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-full flex items-center gap-1.5 shrink-0 ml-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                <span>Live</span>
+                            </span>
+                        </div>
                     </div>`;
                 }).join('');
             } else {
                 sessionsHtml = `
-                <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-white/50 text-center space-y-1">
-                    <p class="font-medium text-white/70">Tidak ada lagu yang sedang diputar saat ini.</p>
-                    <p class="text-[11px] text-white/40">Saat Anda atau pengguna lain memutar lagu di pemutar musik, status dan judul lagu akan otomatis tampil di sini secara real-time.</p>
+                <div class="p-5 rounded-2xl bg-white/[0.02] border border-white/5 text-xs text-white/50 text-center space-y-1.5">
+                    <div class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/40">
+                        <i data-lucide="headphones" class="w-5 h-5"></i>
+                    </div>
+                    <p class="font-bold text-white/70">Tidak ada lagu yang sedang diputar saat ini.</p>
+                    <p class="text-[11px] text-white/40 max-w-md mx-auto">Saat Anda atau pengguna lain sedang memutar musik di aplikasi, profil username, foto, judul lagu, dan perangkatnya akan otomatis muncul di sini secara real-time.</p>
                 </div>`;
             }
 
@@ -2599,11 +2638,17 @@ var Profile = {
     },
 
     async start2FASetup() {
-        var token = sessionStorage.getItem('musifystar_admin_token');
+        var token = sessionStorage.getItem('musifystar_admin_token') || localStorage.getItem('musifystar_admin_token');
         var box = gid('admin-2fa-setup-box');
         var btn = gid('admin-start-2fa-btn');
 
-        if (!token || !box) return;
+        if (!token) {
+            if (typeof showToast === 'function') {
+                showToast('Silakan login ke panel admin terlebih dahulu');
+            }
+            return;
+        }
+        if (!box) return;
 
         if (btn) {
             btn.disabled = true;
@@ -2618,7 +2663,7 @@ var Profile = {
                     'Content-Type': 'application/json',
                     'x-admin-token': token
                 },
-                body: JSON.stringify({ action: '2fa_setup' })
+                body: JSON.stringify({ action: '2fa_setup', token: token })
             });
             var data = await res.json();
 
@@ -2691,7 +2736,7 @@ var Profile = {
         var otpInput = gid('admin-setup-otp');
         var alertEl = gid('admin-2fa-setup-alert');
         var btn = gid('admin-confirm-2fa-btn');
-        var token = sessionStorage.getItem('musifystar_admin_token');
+        var token = sessionStorage.getItem('musifystar_admin_token') || localStorage.getItem('musifystar_admin_token');
 
         var otp = otpInput ? otpInput.value.trim() : '';
         if (!otp || otp.length !== 6 || !token) return;
@@ -2712,7 +2757,8 @@ var Profile = {
                 body: JSON.stringify({
                     action: '2fa_enable',
                     secret: secret,
-                    otp: otp
+                    otp: otp,
+                    token: token
                 })
             });
             var data = await res.json();
@@ -2749,7 +2795,7 @@ var Profile = {
     },
 
     async disable2FA() {
-        var token = sessionStorage.getItem('musifystar_admin_token');
+        var token = sessionStorage.getItem('musifystar_admin_token') || localStorage.getItem('musifystar_admin_token');
         if (!token) return;
 
         var pwd = prompt('Masukkan password admin Anda untuk mengonfirmasi penonaktifan 2FA:');
@@ -2764,7 +2810,8 @@ var Profile = {
                 },
                 body: JSON.stringify({
                     action: '2fa_disable',
-                    password: pwd
+                    password: pwd,
+                    token: token
                 })
             });
             var data = await res.json();

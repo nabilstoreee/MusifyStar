@@ -1,6 +1,31 @@
 // ============================================================
 // NANZMUSIFY - CORE PLAYER (FULL FIX)
 // ============================================================
+// Global defensive shield for HTMLMediaElement.prototype.currentTime
+(function() {
+    try {
+        if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype) {
+            var proto = HTMLMediaElement.prototype;
+            var descriptor = Object.getOwnPropertyDescriptor(proto, 'currentTime');
+            if (descriptor && descriptor.set) {
+                var originalSet = descriptor.set;
+                Object.defineProperty(proto, 'currentTime', {
+                    get: descriptor.get,
+                    set: function(val) {
+                        var num = Number(val);
+                        if (typeof num === 'number' && Number.isFinite(num) && !isNaN(num) && num >= 0) {
+                            try {
+                                originalSet.call(this, num);
+                            } catch (err) {}
+                        }
+                    },
+                    configurable: true,
+                    enumerable: descriptor.enumerable
+                });
+            }
+        }
+    } catch (e) {}
+})();
 const API={search:'/api/search',artist:'/api/artist',suggest:'/api/suggest',lyrics:'/api/lyrics',ytplay:'/api/ytplay',homeSections:'/api/home-sections'};
 const FI='data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22100%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2523374151%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20width%3D%22100%2525%22%20height%3D%22100%2525%22%20fill%3D%22%252318181b%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%2210%22%20fill%3D%22%252327272a%22%20stroke%3D%22none%22%2F%3E%3Cpath%20d%3D%22M9%2017V5l10-2v12%22%20stroke%3D%22%252352525b%22%20stroke-width%3D%221%22%2F%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2217%22%20r%3D%223%22%20fill%3D%22%252352525b%22%20stroke%3D%22none%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2215%22%20r%3D%223%22%20fill%3D%22%252352525b%22%20stroke%3D%22none%22%2F%3E%3C%2Fsvg%3E';
 const FA='data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22100%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%25239ca3af%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20width%3D%22100%2525%22%20height%3D%22100%2525%22%20fill%3D%22%252327272a%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%228%22%20r%3D%224%22%20fill%3D%22%252352525b%22%20stroke%3D%22none%22%2F%3E%3Cpath%20d%3D%22M4%2020c0-4%203.6-7%208-7s8%203%208%207%22%20fill%3D%22%252352525b%22%20stroke%3D%22none%22%2F%3E%3C%2Fsvg%3E';
@@ -223,6 +248,33 @@ function sendPlaybackHeartbeat(isPlaying) {
     lastHeartbeatTime = now;
 
     var track = S.ct;
+    var currentUser = null;
+    try {
+        if (window.Auth && Auth.currentUser) {
+            currentUser = {
+                id: Auth.currentUser.id || '',
+                username: Auth.currentUser.username || '',
+                name: Auth.currentUser.name || Auth.currentUser.username || '',
+                email: Auth.currentUser.rawEmail || Auth.currentUser.email || '',
+                avatar: Auth.currentUser.avatar || Auth.currentUser.photoURL || ''
+            };
+        } else {
+            var rawUser = localStorage.getItem('musifystar_auth_user') || sessionStorage.getItem('musifystar_auth_user');
+            if (rawUser) {
+                var parsed = JSON.parse(rawUser);
+                if (parsed) {
+                    currentUser = {
+                        id: parsed.id || '',
+                        username: parsed.username || '',
+                        name: parsed.name || parsed.username || '',
+                        email: parsed.rawEmail || parsed.email || '',
+                        avatar: parsed.avatar || parsed.photoURL || ''
+                    };
+                }
+            }
+        }
+    } catch(e) {}
+
     try {
         fetch('/api/analytics', {
             method: 'POST',
@@ -237,7 +289,8 @@ function sendPlaybackHeartbeat(isPlaying) {
                 image: track ? (track.image || track.cover || track.thumbnail || '') : '',
                 duration: track ? (track.duration || '') : '',
                 album: track ? (track.album || '') : '',
-                device: getClientDeviceType()
+                device: getClientDeviceType(),
+                user: currentUser
             })
         }).catch(function() {});
     } catch(e) {}
@@ -289,14 +342,32 @@ if('mediaSession' in navigator){
         navigator.mediaSession.setActionHandler('nexttrack',function(){NX();});
         navigator.mediaSession.setActionHandler('stop',function(){try{AU.pause();}catch(e){}});
         navigator.mediaSession.setActionHandler('seekto',function(details){
-            if(details.fastSeek && 'fastSeek' in AU){AU.fastSeek(details.seekTime);return;}
-            if(AU.duration){AU.currentTime=details.seekTime;S.pt=details.seekTime;renderProgress();}
+            if(!details) return;
+            var st = Number(details.seekTime);
+            if(!Number.isFinite(st) || isNaN(st) || st < 0) return;
+            if(details.fastSeek && 'fastSeek' in AU){AU.fastSeek(st);return;}
+            if(AU.duration){
+                try { AU.currentTime = st; } catch(e){}
+                S.pt = st;
+                renderProgress();
+            }
         });
         navigator.mediaSession.setActionHandler('seekbackward',function(details){
-            AU.currentTime=Math.max(0,(AU.currentTime||0)-(details.seekOffset||10));
+            var cur = (AU && Number.isFinite(AU.currentTime)) ? AU.currentTime : (S.pt || 0);
+            var offset = (details && Number.isFinite(details.seekOffset)) ? details.seekOffset : 10;
+            var target = Math.max(0, cur - offset);
+            try { AU.currentTime = target; } catch(e){}
+            S.pt = target;
+            renderProgress();
         });
         navigator.mediaSession.setActionHandler('seekforward',function(details){
-            AU.currentTime=Math.min(AU.duration||0,(AU.currentTime||0)+(details.seekOffset||10));
+            var cur = (AU && Number.isFinite(AU.currentTime)) ? AU.currentTime : (S.pt || 0);
+            var offset = (details && Number.isFinite(details.seekOffset)) ? details.seekOffset : 10;
+            var dur = (AU && Number.isFinite(AU.duration)) ? AU.duration : (getAuthoritativeDuration() || 0);
+            var target = Math.min(dur, cur + offset);
+            try { AU.currentTime = target; } catch(e){}
+            S.pt = target;
+            renderProgress();
         });
     }catch(e){}
 }
@@ -1282,8 +1353,16 @@ async function fetchAudioAndPlay(track,resumeAt){
                 AU.removeAttribute('crossorigin');
                 AU.src = audioUrl;
             }
-            if(resumeAt){
-                var onMeta=function(){AU.currentTime=resumeAt;AU.removeEventListener('loadedmetadata',onMeta);};
+            if(resumeAt !== undefined && resumeAt !== null && Number.isFinite(Number(resumeAt)) && Number(resumeAt) > 0){
+                var safeResume = Number(resumeAt);
+                var onMeta=function(){
+                    try {
+                        if(Number.isFinite(safeResume) && safeResume >= 0){
+                            AU.currentTime = safeResume;
+                        }
+                    } catch(e){}
+                    AU.removeEventListener('loadedmetadata',onMeta);
+                };
                 AU.addEventListener('loadedmetadata',onMeta);
             }
             var p = AU.play();
@@ -1420,7 +1499,7 @@ function PV(forcePrev){
     // must always jump to the actual previous track, matching what people expect
     // from a media-session control.
     if(!forcePrev && S.pt > 3){
-        AU.currentTime = 0;
+        try { AU.currentTime = 0; } catch(e){}
         return;
     }
     var pi = S.pi - 1;
@@ -1429,11 +1508,15 @@ function PV(forcePrev){
 }
 function SK(v){
     var total = getAuthoritativeDuration();
-    if(S.il || !total || total <= 0) return;
-    var ct=(parseFloat(v)/100)*total;
-    try { AU.currentTime = ct; } catch(e){}
-    S.pt = ct;
-    renderProgress();
+    if(S.il || !Number.isFinite(total) || total <= 0) return;
+    var parsedV = parseFloat(v);
+    if (!Number.isFinite(parsedV) || isNaN(parsedV)) return;
+    var ct = Math.max(0, Math.min(total, (parsedV / 100) * total));
+    if (Number.isFinite(ct)) {
+        try { AU.currentTime = ct; } catch(e){}
+        S.pt = ct;
+        renderProgress();
+    }
 }
 function TR(){var b=gid('btn-repeat'),o=gid('repeat-one');if(S.rm==='all'){S.rm='one';if(b)b.classList.add('text-white');if(o)o.classList.remove('hidden');}else{S.rm='all';if(b)b.classList.remove('text-white');if(o)o.classList.add('hidden');}}
 function updateShuffleUI(){
@@ -1818,9 +1901,12 @@ function ULH(ct, forceScroll){
 
 function SLT(t){
     if(AU){
-        AU.currentTime=t;
-        S.pt=t;
-        ULH(t, true);
+        var safeT = Number(t);
+        if(Number.isFinite(safeT) && !isNaN(safeT) && safeT >= 0){
+            try { AU.currentTime = safeT; } catch(e){}
+            S.pt = safeT;
+            ULH(safeT, true);
+        }
     }
 }
 
@@ -2536,7 +2622,7 @@ function openEqualizer() {
     var hadAudioCtx = !!audioCtx;
     setupWebAudioEQ();
     if (!hadAudioCtx && audioCtx && S.ct && !AU.paused) {
-        var currTime = AU.currentTime;
+        var currTime = (AU && Number.isFinite(AU.currentTime) && AU.currentTime > 0) ? AU.currentTime : 0;
         showToast('Mengaktifkan Equalizer...');
         loadTrack(S.ct, currTime);
     }

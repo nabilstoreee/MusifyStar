@@ -2,6 +2,31 @@
 <html lang="id">
 <head>
     <script>
+        // Universal Shield for HTMLMediaElement.prototype.currentTime to eliminate non-finite TypeError
+        (function() {
+            try {
+                if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype) {
+                    var proto = HTMLMediaElement.prototype;
+                    var descriptor = Object.getOwnPropertyDescriptor(proto, 'currentTime');
+                    if (descriptor && descriptor.set) {
+                        var originalSet = descriptor.set;
+                        Object.defineProperty(proto, 'currentTime', {
+                            get: descriptor.get,
+                            set: function(val) {
+                                var num = Number(val);
+                                if (typeof num === 'number' && Number.isFinite(num) && !isNaN(num) && num >= 0) {
+                                    try {
+                                        originalSet.call(this, num);
+                                    } catch (err) {}
+                                }
+                            },
+                            configurable: true,
+                            enumerable: descriptor.enumerable
+                        });
+                    }
+                }
+            } catch (e) {}
+        })();
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/sw.js').then(function(reg) {
