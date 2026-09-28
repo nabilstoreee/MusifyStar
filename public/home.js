@@ -110,6 +110,65 @@ var Home = {
     },
 
     render() {
+        if (!navigator.onLine) {
+            var offlineSongs = typeof getOfflineSongs === 'function' ? getOfflineSongs() : [];
+            var savedCountText = offlineSongs.length > 0 
+                ? `${offlineSongs.length} lagu tersimpan di perangkat Anda dan siap diputar.` 
+                : 'Belum ada lagu yang disimpan di penyimpanan offline perangkat.';
+
+            gid('view-home').innerHTML = `
+            <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all bg-black/80 backdrop-blur-md">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-2xl font-black text-white tracking-tight drop-shadow-md">MusifyStar</h1>
+                        <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border border-amber-400/40 text-amber-300 bg-amber-500/10">Mode Offline</span>
+                    </div>
+                    <button onclick="App.switch('offline')" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm">
+                        <i data-lucide="wifi-off" class="w-3.5 h-3.5"></i>
+                        <span>Lagu Offline</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center justify-center min-h-[65vh] text-center px-4 py-12 select-none">
+                <div class="relative mb-6">
+                    <div class="w-24 h-24 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-2xl backdrop-blur-md">
+                        <i data-lucide="wifi-off" class="w-12 h-12 stroke-[1.75]"></i>
+                    </div>
+                    <div class="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-xs font-black shadow-md">!</div>
+                </div>
+
+                <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold uppercase tracking-wider mb-3">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    Sinyal Terputus
+                </div>
+
+                <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2.5">
+                    Sinyal Anda Terputus
+                </h2>
+                <p class="text-white/80 text-sm max-w-sm leading-relaxed mb-2 font-semibold">
+                    Anda tidak bisa putar musik saat mode offline.
+                </p>
+                <p class="text-white/45 text-xs max-w-xs leading-relaxed mb-8">
+                    ${savedCountText}
+                </p>
+
+                <div class="flex flex-col sm:flex-row items-center gap-3 w-full max-w-xs">
+                    <button onclick="App.switch('offline')" class="w-full btn-chrome py-3 px-5 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all cursor-pointer">
+                        <i data-lucide="folder-check" class="w-4 h-4"></i>
+                        <span>Buka Lagu Offline Tersimpan</span>
+                    </button>
+                    <button onclick="Home.retryConnection()" class="w-full py-3 px-5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-md">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>Coba Sambungkan Ulang</span>
+                    </button>
+                </div>
+            </div>`;
+            if (window.lucide) lucide.createIcons();
+            if (typeof hideSplashScreen === 'function') setTimeout(hideSplashScreen, 100);
+            return;
+        }
+
         Home.initCache();
 
         var chipsHtml = Home.categories.map(function(c) {
@@ -135,12 +194,9 @@ var Home = {
         gid('view-home').innerHTML = `
         <div class="pt-8 pb-3.5 px-4 sticky top-0 z-30 border-b border-white/10 shadow-2xl transition-all" style="background: linear-gradient(180deg, rgba(13, 15, 22, 0.88) 0%, rgba(13, 15, 22, 0.97) 100%), url('/banner.png') center/cover no-repeat; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
             <div class="flex justify-between items-center mb-3">
-                <div class="flex items-center gap-2.5">
-                    <img src="/logo.png" class="w-9 h-9 rounded-xl shadow-md border border-white/20 object-cover" onerror="this.style.display='none'">
-                    <div>
-                        <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-md">MusifyStar</h1>
-                        <p class="text-[10px] text-white/60 tracking-wider font-semibold uppercase">Premium Streaming Musik & Lirik</p>
-                    </div>
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-md">MusifyStar</h1>
+                    <p class="text-[10px] text-white/60 tracking-wider font-semibold uppercase">Premium Streaming Musik & Lirik</p>
                 </div>
                 <div class="flex items-center gap-2.5">
                     <button onclick="App.switch('search')" class="w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/90 hover:text-white hover:bg-black/60 active:scale-95 transition-all shadow-lg cursor-pointer" title="Cari Musik">
@@ -603,6 +659,16 @@ var Home = {
                 }, 1000 + (idx * 1500));
             });
         } catch (e) {}
+    },
+
+    retryConnection() {
+        if (navigator.onLine) {
+            showToast('Koneksi internet terhubung kembali! Memuat beranda...');
+            Home.render();
+            if (typeof App !== 'undefined') App.loadBroadcast();
+        } else {
+            showToast('Sinyal masih terputus. Pastikan WiFi atau data seluler Anda aktif.');
+        }
     },
 
     renderTop50Podium() {

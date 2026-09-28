@@ -522,9 +522,9 @@ var Library={
                     '</div>';
                 } else {
                     var isCur = S.ct && (
-                        S.ct.id === s.id ||
-                        S.ct.videoId === s.videoId ||
-                        (S.ct.title === s.title && S.ct.artist === s.artist)
+                        (s.id && (S.ct.id === s.id || S.ct.videoId === s.id)) ||
+                        (s.videoId && (S.ct.id === s.videoId || S.ct.videoId === s.videoId)) ||
+                        (s.title && S.ct.title && s.title.trim().toLowerCase() === S.ct.title.trim().toLowerCase() && (!s.artist || !S.ct.artist || s.artist.trim().toLowerCase() === S.ct.artist.trim().toLowerCase()))
                     );
                     var isPlay = isCur && S.ip;
                     var isLoad = isCur && S.il;
@@ -598,9 +598,9 @@ var Library={
             if (!el) continue;
 
             var isCur = S.ct && (
-                S.ct.id === s.id ||
-                S.ct.videoId === s.videoId ||
-                (S.ct.title === s.title && S.ct.artist === s.artist)
+                (s.id && (S.ct.id === s.id || S.ct.videoId === s.id)) ||
+                (s.videoId && (S.ct.id === s.videoId || S.ct.videoId === s.videoId)) ||
+                (s.title && S.ct.title && s.title.trim().toLowerCase() === S.ct.title.trim().toLowerCase() && (!s.artist || !S.ct.artist || s.artist.trim().toLowerCase() === S.ct.artist.trim().toLowerCase()))
             );
             var isPlay = isCur && S.ip;
             var isLoad = isCur && S.il;

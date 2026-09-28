@@ -28,13 +28,71 @@
             } catch (e) {}
         })();
         if ('serviceWorker' in navigator) {
+            var refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', function() {
+                if (refreshing) return;
+                refreshing = true;
+                window.location.reload();
+            });
+
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                    reg.update();
+                    window.musifySwRegistration = reg;
+                    try { reg.update(); } catch(e){}
+
+                    reg.addEventListener('updatefound', function() {
+                        var newWorker = reg.installing;
+                        if (newWorker) {
+                            newWorker.addEventListener('statechange', function() {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        }
+                    });
                     console.log('PWA SW Registered:', reg.scope);
                 }).catch(function(err) {
                     console.error('PWA SW Register failed:', err);
                 });
+            });
+
+            // Universal PWA Version Watcher: Check every 30s & on focus
+            window.activeAppVersion = window.activeAppVersion || null;
+            window.checkPwaVersionUpdate = async function() {
+                try {
+                    var res = await fetch('/api/version?t=' + Date.now(), { cache: 'no-store' });
+                    var data = await res.json();
+                    if (!data || !data.version) return;
+
+                    if (!window.activeAppVersion) {
+                        window.activeAppVersion = data.version;
+                        return;
+                    }
+
+                    if (window.activeAppVersion !== data.version || data.forceReload) {
+                        console.log('[PWA UPDATE] Newer version detected:', data.version, 'Current:', window.activeAppVersion);
+                        window.activeAppVersion = data.version;
+                        if (window.musifySwRegistration) {
+                            try { window.musifySwRegistration.update(); } catch(e){}
+                        }
+                        if (typeof showToast === 'function') {
+                            showToast('🚀 Memperbarui MusifyStar ke ' + data.version + '...');
+                        }
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1200);
+                    }
+                } catch(e) {}
+            };
+
+            setInterval(window.checkPwaVersionUpdate, 30000);
+            window.addEventListener('focus', function() {
+                setTimeout(window.checkPwaVersionUpdate, 1000);
+            });
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    window.checkPwaVersionUpdate();
+                }
             });
         }
     </script>
@@ -1130,9 +1188,9 @@
     </div>
 
     <!-- PWA Offline Banner -->
-    <div id="pwa-offline-banner" class="hidden fixed top-3 left-1/2 -translate-x-1/2 z-[500] bg-amber-500/90 text-black font-bold text-xs px-4 py-1.5 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2 border border-amber-400/50">
-        <i data-lucide="wifi-off" class="w-4 h-4"></i>
-        <span id="pwa-offline-text">Mode Offline - Memutar data tersimpan</span>
+    <div id="pwa-offline-banner" onclick="if(typeof App !== 'undefined') App.switch('offline')" class="hidden fixed top-3 left-1/2 -translate-x-1/2 z-[500] bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-extrabold text-xs px-4 py-1.5 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2 border border-amber-300/60 cursor-pointer transition-all select-none">
+        <i data-lucide="wifi-off" class="w-4 h-4 shrink-0"></i>
+        <span id="pwa-offline-text">Mode Offline Aktif</span>
     </div>
 
     <div id="nav-container"></div>

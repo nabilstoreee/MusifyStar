@@ -160,3 +160,12 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Message listener for instant updates & skipWaiting
+self.addEventListener('message', (event) => {
+  if (event.data) {
+    if (event.data.type === 'SKIP_WAITING' || event.data === 'skipWaiting') {
+      self.skipWaiting();
+    }
+  }
+});

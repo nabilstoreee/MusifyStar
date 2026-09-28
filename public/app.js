@@ -84,9 +84,15 @@ function clearPwaCache() {
 window.addEventListener('online', function() {
     updateOnlineOfflineStatus();
     showToast('Koneksi internet terhubung kembali (Online)');
+    if (typeof S !== 'undefined' && S.at === 'home' && typeof Home !== 'undefined') {
+        Home.render();
+    }
 });
 window.addEventListener('offline', function() {
     updateOnlineOfflineStatus();
+    if (typeof S !== 'undefined' && S.at === 'home' && typeof Home !== 'undefined') {
+        Home.render();
+    }
 });
 document.addEventListener('DOMContentLoaded', updateOnlineOfflineStatus);
 
@@ -357,6 +363,22 @@ window.playDeleteAnimation = function(btn, onComplete) {
     }, 1550);
 };
 
+function isSameOfflineSong(ct, s) {
+    if (!ct || !s) return false;
+    var ctVid = ct.videoId || ct.id;
+    var sVid = s.videoId || s.id;
+    if (ctVid && sVid && String(ctVid) === String(sVid)) return true;
+    if (ct.title && s.title) {
+        var ctTitle = String(ct.title).trim().toLowerCase();
+        var sTitle = String(s.title).trim().toLowerCase();
+        if (ctTitle === sTitle) {
+            if (!ct.artist || !s.artist) return true;
+            return String(ct.artist).trim().toLowerCase() === String(s.artist).trim().toLowerCase();
+        }
+    }
+    return false;
+}
+
 var OfflineView = {
     selectMode: false,
     selectedIndices: new Set(),
@@ -518,6 +540,52 @@ var OfflineView = {
         });
     },
 
+    renderActive() {
+        if (OfflineView.selectMode) return;
+        var container = gid('offline-songs-container');
+        if (!container) return;
+        var offlineSongs = typeof getOfflineSongs === 'function' ? getOfflineSongs() : [];
+        if (!offlineSongs.length) return;
+
+        var rows = container.querySelectorAll('.offline-song-row');
+        rows.forEach(function(row) {
+            var idx = parseInt(row.getAttribute('data-offline-idx'), 10);
+            if (isNaN(idx) || !offlineSongs[idx]) return;
+            var s = offlineSongs[idx];
+
+            var isCur = isSameOfflineSong(S.ct, s);
+            var isPlay = isCur && S.ip;
+            var isLoad = isCur && S.il;
+
+            var playIconHtml = '';
+            if (isLoad) {
+                playIconHtml = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
+            } else if (isPlay) {
+                playIconHtml = '<div class="flex items-end justify-center gap-[2px] w-4 h-4 pb-0.5"><span class="w-[2px] bg-white rounded-full animate-eq-1"></span><span class="w-[2px] bg-white rounded-full animate-eq-2"></span><span class="w-[2px] bg-white rounded-full animate-eq-3"></span></div>';
+            } else if (isCur) {
+                playIconHtml = '<svg class="w-4 h-4 fill-current text-white" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+            } else {
+                playIconHtml = '<svg class="w-4 h-4 fill-current text-white ml-0.5" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>';
+            }
+
+            var cardBg = isPlay 
+                ? 'bg-white/20 border-white/40 shadow-lg shadow-white/10' 
+                : (isCur ? 'bg-white/15 border-white/30' : 'bg-white/[0.08] hover:bg-white/[0.14] border-white/20 hover:border-white/35 shadow-sm');
+            var titleClass = isCur ? 'text-white font-black' : 'text-white/90 font-bold';
+
+            row.className = 'offline-song-row flex items-center gap-2.5 sm:gap-3 p-1.5 pr-3 sm:p-2 sm:pr-4 rounded-full border ' + cardBg + ' active:scale-95 transition-all duration-200 group backdrop-blur-md select-none';
+            var titleEl = row.querySelector('.offline-song-title');
+            if (titleEl) {
+                titleEl.className = 'offline-song-title ' + titleClass + ' text-xs sm:text-sm truncate';
+            }
+            var btnEl = row.querySelector('.offline-play-btn');
+            if (btnEl) {
+                btnEl.innerHTML = playIconHtml;
+                btnEl.className = 'offline-play-btn w-8 h-8 rounded-full ' + (isCur ? 'bg-white/25 text-white' : 'bg-white/10 text-white') + ' flex items-center justify-center shrink-0 hover:bg-white/20 border border-white/15 active:scale-90 transition-all shadow-sm';
+            }
+        });
+    },
+
     render() {
         var el = gid('view-offline');
         if (!el) return;
@@ -543,23 +611,19 @@ var OfflineView = {
                     '</div>';
                 }
 
-                var isCur = S.ct && (
-                    S.ct.id === s.id ||
-                    S.ct.videoId === s.videoId ||
-                    (S.ct.title === s.title && S.ct.artist === s.artist)
-                );
+                var isCur = isSameOfflineSong(S.ct, s);
                 var isPlay = isCur && S.ip;
                 var isLoad = isCur && S.il;
 
                 var playIconHtml = '';
                 if (isLoad) {
-                    playIconHtml = '<div class="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>';
+                    playIconHtml = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
                 } else if (isPlay) {
-                    playIconHtml = '<div class="flex items-end justify-center gap-[2px] w-4 h-4 pb-0.5"><span class="w-[2px] bg-black rounded-full animate-eq-1"></span><span class="w-[2px] bg-black rounded-full animate-eq-2"></span><span class="w-[2px] bg-black rounded-full animate-eq-3"></span></div>';
+                    playIconHtml = '<div class="flex items-end justify-center gap-[2px] w-4 h-4 pb-0.5"><span class="w-[2px] bg-white rounded-full animate-eq-1"></span><span class="w-[2px] bg-white rounded-full animate-eq-2"></span><span class="w-[2px] bg-white rounded-full animate-eq-3"></span></div>';
                 } else if (isCur) {
-                    playIconHtml = '<i data-lucide="pause" class="w-4 h-4 text-black fill-current"></i>';
+                    playIconHtml = '<svg class="w-4 h-4 fill-current text-white" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
                 } else {
-                    playIconHtml = '<i data-lucide="play" class="w-4 h-4 text-black fill-current ml-0.5"></i>';
+                    playIconHtml = '<svg class="w-4 h-4 fill-current text-white ml-0.5" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>';
                 }
 
                 var cardBg = isPlay 
@@ -574,18 +638,18 @@ var OfflineView = {
                     getAnimDeleteBtnHtml('', 'anim-delete-mini', 'event.stopPropagation();OfflineView.deleteSong(this,'+safeSongJson+','+i+')', 'Hapus dari Mode Offline') :
                     '<button onclick="event.stopPropagation();OfflineView.deleteSong(this,'+safeSongJson+','+i+');" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-white/50 hover:text-red-400 border border-white/10 flex items-center justify-center shrink-0 active:scale-90 transition-all"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>';
 
-                return '<div class="offline-song-row flex items-center gap-2.5 sm:gap-3 p-1.5 pr-3 sm:p-2 sm:pr-4 rounded-full border '+cardBg+' active:scale-95 transition-all duration-200 group backdrop-blur-md select-none">'+
+                return '<div data-offline-idx="'+i+'" class="offline-song-row flex items-center gap-2.5 sm:gap-3 p-1.5 pr-3 sm:p-2 sm:pr-4 rounded-full border '+cardBg+' active:scale-95 transition-all duration-200 group backdrop-blur-md select-none">'+
                     '<div onclick="PK(\'offline\','+i+')" class="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 cursor-pointer">'+
                         '<div class="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden shrink-0 shadow-sm border border-white/20 bg-black/40 relative">'+
                             '<img src="'+(s.cover || FI)+'" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.src=\''+FI+'\'" />'+
                         '</div>'+
                         '<div class="min-w-0 flex-1">'+
-                            '<h3 class="'+titleClass+' text-xs sm:text-sm truncate">'+es(s.title)+'</h3>'+
+                            '<h3 class="offline-song-title '+titleClass+' text-xs sm:text-sm truncate">'+es(s.title)+'</h3>'+
                             '<p class="text-[11px] text-white/60 truncate mt-0.5">'+es(s.artist)+(dateStr ? ' • <span class="text-white/40">Offline ('+dateStr+')</span>' : '')+'</p>'+
                         '</div>'+
                     '</div>'+
                     deleteBtnHtml+
-                    '<button onclick="PK(\'offline\','+i+')" class="w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center shrink-0 hover:bg-white/20 border border-white/15 active:scale-90 transition-all shadow-sm">'+
+                    '<button onclick="PK(\'offline\','+i+')" class="offline-play-btn w-8 h-8 rounded-full '+(isCur ? 'bg-white/25 text-white' : 'bg-white/10 text-white')+' flex items-center justify-center shrink-0 hover:bg-white/20 border border-white/15 active:scale-90 transition-all shadow-sm">'+
                         playIconHtml+
                     '</button>'+
                 '</div>';
@@ -721,6 +785,17 @@ var App={
         App.loadBroadcast();
         // Poll broadcast updates periodically every 60s
         setInterval(function() { App.loadBroadcast(); }, 60000);
+        // Poll user inbox badge periodically every 30s
+        setInterval(function() {
+            if (typeof Profile !== 'undefined' && typeof Profile.checkUserInboxBadge === 'function') {
+                Profile.checkUserInboxBadge();
+            }
+        }, 30000);
+        setTimeout(function() {
+            if (typeof Profile !== 'undefined' && typeof Profile.checkUserInboxBadge === 'function') {
+                Profile.checkUserInboxBadge();
+            }
+        }, 2000);
         App.switch(!navigator.onLine ? 'offline' : 'home');
         lucide.createIcons();
         setTimeout(function(){ App.checkUrl(); }, 1000);

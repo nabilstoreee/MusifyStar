@@ -996,6 +996,8 @@ function UB(){
         if (typeof Artist !== 'undefined' && typeof Artist.renderActive === 'function') Artist.renderActive();
         if (typeof Liked !== 'undefined' && typeof Liked.renderActive === 'function') Liked.renderActive();
         else if (S.at === 'liked' && typeof Liked !== 'undefined' && typeof Liked.render === 'function') Liked.render();
+        if (typeof Library !== 'undefined' && typeof Library.renderActive === 'function') Library.renderActive();
+        if (typeof OfflineView !== 'undefined' && typeof OfflineView.renderActive === 'function') OfflineView.renderActive();
         if (typeof App !== 'undefined' && typeof App.renderActive === 'function') App.renderActive();
     } catch(e) {}
 }
