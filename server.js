@@ -206,6 +206,8 @@ app.all('/api/broadcast', require('./api/broadcast.js'));
 app.all('/api/version', require('./api/version.js'));
 app.all('/api/user-auth', require('./api/user-auth.js'));
 app.all('/api/home-sections', require('./api/home-sections.js'));
+app.all('/api/payment-config', require('./api/payment-config.js'));
+app.all('/api/messages', require('./api/messages.js'));
 
 // Proxy audio needs to stream in node, bypassing edge function
 app.get('/api/proxy-audio', (req, res) => {
@@ -271,7 +273,9 @@ app.get('/api/proxy-audio', (req, res) => {
 
 // Dedicated QRIS download handler ensuring proper PNG MIME type and attachment headers
 app.get(['/api/download-qris', '/download-qris'], (req, res) => {
-    const qrisPath = path.join(__dirname, 'public', 'qris.png');
+    const customQris = path.join(__dirname, 'public', 'qris_custom.png');
+    const defaultQris = path.join(__dirname, 'public', 'qris.png');
+    const qrisPath = fs.existsSync(customQris) ? customQris : defaultQris;
     if (fs.existsSync(qrisPath)) {
         res.setHeader('Content-Type', 'image/png');
         res.setHeader('Content-Disposition', 'attachment; filename="QRIS-MusifyStar-Nabil.png"');
@@ -282,7 +286,9 @@ app.get(['/api/download-qris', '/download-qris'], (req, res) => {
 
 // Serve /qris.png with image/png and optional download attachment
 app.get('/qris.png', (req, res) => {
-    const qrisPath = path.join(__dirname, 'public', 'qris.png');
+    const customQris = path.join(__dirname, 'public', 'qris_custom.png');
+    const defaultQris = path.join(__dirname, 'public', 'qris.png');
+    const qrisPath = fs.existsSync(customQris) ? customQris : defaultQris;
     if (fs.existsSync(qrisPath)) {
         res.setHeader('Content-Type', 'image/png');
         if (req.query.download === '1') {
