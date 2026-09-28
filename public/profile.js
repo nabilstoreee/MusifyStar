@@ -6014,9 +6014,10 @@ var Profile = {
                     <div onclick="Profile.markUserMessageRead('${m.id}')" class="p-4 rounded-2xl ${m.isRead ? 'bg-white/[0.03] border-white/10' : 'bg-cyan-500/[0.07] border-cyan-500/30 shadow-md shadow-cyan-500/10'} border transition-all space-y-2 cursor-pointer group hover:border-cyan-400/50">
                         <div class="flex items-center justify-between gap-2">
                             <div class="flex items-center gap-2">
-                                
+                                ${unreadDot}
                                 <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border ${priorityClass} font-mono">Pesan Dari : Admin MusifyStar</span>
-                                <span class="text-[11px] text-white/50 font-medium">${priorityText} ${unreadDot}</span>
+                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border ${priorityClass} font-mono">${priorityText}</span>
+                                <span class="text-[11px] text-white/50 font-medium"></span>
                             </div>
                             <span class="text-[10px] text-white/40">${dateStr}</span>
                         </div>
