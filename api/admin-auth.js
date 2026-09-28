@@ -606,5 +606,6 @@ module.exports.isValidToken = function (token) {
 module.exports.verifyToken = function (token) {
     return verifySessionToken(token);
 };
+module.exports.createSignedSessionToken = createSignedSessionToken;
 module.exports.getStoredCredentials = getStoredCredentialsSync;
 module.exports.getStoredCredentialsAsync = getStoredCredentialsAsync;

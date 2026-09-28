@@ -425,7 +425,7 @@ module.exports = async (req, res) => {
             }
 
             // GET ALL USERS WITH LOGIN LOGS, IP, PASSWORD SENSOR & BAN STATUS
-            if (action === 'admin_get_users') {
+            if (action === 'admin_get_users' || action === 'admin_list_users') {
                 const userList = db.users.map(u => {
                     const banStatus = getUserBanStatus(u, banRegistry);
                     return {
@@ -1242,3 +1242,8 @@ module.exports = async (req, res) => {
         return res.status(500).json({ status: false, message: 'Terjadi kesalahan server internal: ' + err.message });
     }
 };
+
+module.exports.verifyUserToken = verifyUserToken;
+module.exports.createSignedUserToken = createSignedUserToken;
+module.exports.getUserIdFromToken = getUserIdFromToken;
+
